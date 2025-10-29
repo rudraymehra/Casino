@@ -365,49 +365,6 @@ sequenceDiagram
     end
 ```
 
-## 🌐 Multi-Network Architecture (Push Chain + Arbitrum)
-
-```mermaid
-graph TB
-    subgraph User["User Layer"]
-        U[User] --> W[Wallet]
-    end
-    
-    subgraph Frontend["Frontend Application"]
-        F[Next.js Casino] --> WC[Wallet Connection]
-        WC --> NS[Network Switcher]
-        NS --> GM[Game Manager]
-    end
-    
-    subgraph PushChainNet["Push Chain Donut (Chain ID: 42101)"]
-        MT[Push Chain] --> MON[PC Token]
-        MON --> DEP[Deposit Contract]
-        MON --> WITH[Withdraw Contract]
-        DEP --> TB[Treasury Balance]
-        WITH --> TB
-    end
-    
-    subgraph ArbitrumNet["Arbitrum Sepolia (Chain ID: 421614)"]
-        AS[Arbitrum Sepolia] --> EC[Entropy Consumer]
-        EC --> PE[Pyth Entropy Contract]
-        PE --> PN[Pyth Network]
-        
-        subgraph EntropyFlow["Entropy Generation"]
-            REQ[Request Entropy]
-            GEN[Generate Random]
-            PROOF[Cryptographic Proof]
-        end
-    end
-    
-    U --> F
-    F --> MT
-    F --> AS
-    GM --> DEP
-    GM --> EC
-    REQ --> GEN
-    GEN --> PROOF
-    PROOF --> GM
-```
 
 ## 🔮 Future Roadmap
 
