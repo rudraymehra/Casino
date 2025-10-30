@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { LINERA_CONFIG } from '../../../config/lineraConfig';
 import { lineraGameLogger } from '../../../services/LineraGameLoggerService';
+import axios from 'axios';
 
 export async function POST(request) {
   try {
@@ -26,22 +27,30 @@ export async function POST(request) {
       payout: gameData.payout
     });
 
-    // Initialize service if not already done
+    // Initialize MUST succeed (no fallback)
     if (!lineraGameLogger.isReady()) {
       console.log('🔄 Initializing Linera Game Logger Service...');
-      await lineraGameLogger.initialize();
+      const ok = await lineraGameLogger.initialize();
+      if (!ok) {
+        return NextResponse.json({ success: false, error: 'Linera network not available' }, { status: 500 });
+      }
     }
 
-    // Log game result to Linera blockchain
-    const result = await lineraGameLogger.logGameResult(gameData);
+    // Real tx only
+    let result;
+    try {
+      result = await lineraGameLogger.logGameResult(gameData);
+    } catch (e) {
+      return NextResponse.json({ success: false, error: e?.message || 'Linera tx failed' }, { status: 500 });
+    }
 
-    if (result.success) {
+    if (result && result.success) {
       console.log('✅ Game result logged to Linera successfully:', {
         chainId: result.chainId,
         blockHeight: result.blockHeight,
         messageId: result.messageId
       });
-      
+
       return NextResponse.json({
         success: true,
         chainId: result.chainId,
@@ -52,11 +61,7 @@ export async function POST(request) {
         gameData: LINERA_CONFIG.formatGameDataForLinera(gameData)
       });
     } else {
-      console.error('❌ Failed to log to Linera:', result.error);
-      return NextResponse.json({
-        success: false,
-        error: result.error
-      }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Linera tx failed' }, { status: 500 });
     }
 
   } catch (error) {

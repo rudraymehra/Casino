@@ -7,7 +7,7 @@ export const LINERA_CONFIG = {
   // Linera Network Configuration
   NETWORK: {
     name: 'Linera Testnet',
-    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost:8080/graphql',
+    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost/graphql',
     explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
     faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET || 'https://faucet.testnet-conway.linera.net',
     chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'e476187f6ddfeb9d588c7b45d3df334d5501d6499b3f9ad5595cae86cce16a65',
