@@ -1,6 +1,6 @@
 # APT Casino - Linera Integration
 
-A provably fair decentralized casino platform showcasing Linera's high-performance blockchain capabilities for real-time gaming, integrated with Push Chain and Pyth Entropy for cryptographically secure randomness.
+A provably fair decentralised casino platform showcasing Linera's high-performance blockchain capabilities for real-time gaming, integrated with Push Chain and Pyth Entropy for cryptographically secure randomness.
 
 ## 🚀 Quick Overview
 
@@ -8,7 +8,7 @@ APT Casino demonstrates Linera's capability to handle high-frequency, real-time 
 - **Linera's Fast Finality**: Near-instant game result logging
 - **Temporary Chains**: Isolated game sessions for optimal performance
 - **Message Passing**: Efficient cross-chain communication
-- **Parallel Processing**: Multi-chain logging (Linera + Push Chain + Solana)
+- **Parallel Processing**: Multi-chain logging (Linera)
 
 ## 🎯 Key Innovation: Why Linera?
 
@@ -61,7 +61,7 @@ graph TB
    - Sub-second finality for instant game outcomes
 
 2. **Parallel Processing**
-   - Game results logged simultaneously to Push Chain, Solana, and Linera
+   - Game results logged simultaneously to Linera
    - Non-blocking architecture ensures smooth gameplay
    - Efficient message passing between chains
 
@@ -150,7 +150,7 @@ The traditional online gambling industry suffers from several issues:
 APT Casino addresses these problems by offering:
 
 - **Provably Fair Gaming**: Powered by Pyth Entropy
-- **Multi-Blockchain Logging**: Game results logged to Push Chain, Solana, and Linera for maximum transparency
+- **Multi-Blockchain Logging**: Game results logged to Linera for maximum transparency
 
 ![commit_and_reveal](https://github.com/user-attachments/assets/cbb150e8-7d22-4903-9729-8ad00c20f1d5)
 
@@ -170,32 +170,24 @@ APT Casino addresses these problems by offering:
 
 - **Pyth Entropy**: Cryptographically secure randomness
 - **On-Chain Verification**: All game outcomes verifiable
-- **Multi-Blockchain Transparency**: Game results logged to:
-  - 🔗 **Push Chain**: Primary gaming blockchain
-  - ☀️ **Solana**: High-speed transaction logging
-  - ⚡ **Linera**: Fast game logic with temporary chains
+- **Multi-Blockchain Transparency**
 - **Transparent Mechanics**: Open-source game logic
 
-### 2. Multi-Chain Architecture
-
-- **Gaming Network**: Push Chain Donut Testnet (Chain ID: 42101)
-- **Entropy Network**: Arbitrum Sepolia (Chain ID: 421614)
-
-### 3. Game Selection
+### 2. Game Selection
 
 - **Roulette**: European roulette with batch betting
 - **Mines**: Strategic mine-sweeping with pattern betting
 - **Plinko**: Physics-based ball drop with auto-betting features
 - **Wheel**: Classic spinning wheel with multiple risk levels
 
-### 4. Social Features
+### 3. Social Features
 
 - **Live Streaming**: Integrated with Livepeer for real-time game streams and tournaments
 - **On-Chain Chat**: Real-time communication with wallet-signed messages
 - **Player Profiles**: NFT-based profiles with gaming history and achievements
 - **Community Events**: Tournaments and collaborative gaming experiences
 
-### 5. Web2 User Experience
+### 4. Web2 User Experience
 
 - **Gasless Transactions**: Treasury-sponsored transactions eliminate gas fees
 - **Seamless Onboarding**: Simplified wallet experience for web2 users
@@ -216,22 +208,6 @@ APT Casino addresses these problems by offering:
    - **Plinko**: Physics-based game showcasing fast finality
    - **Wheel**: Risk-level betting with multi-chain verification
 
-3. **Multi-Chain Badges**
-   - Each game result shows verification badges:
-     - ⚡ Linera (Fast game logic)
-     - 🔗 Push Chain (Payment processing)
-     - ☀️ Solana (High-speed backup)
-     - 🎲 Pyth (Entropy verification)
-
-### Quick Start Guide
-
-1. **Connect Wallet**: Connect to Push Chain Donut Testnet
-2. **Get Test Tokens**: Use Push Chain faucet for PC tokens
-3. **Deposit**: Fund your gaming balance
-4. **Play & Verify**: Play games and verify results on Linera explorer
-
-## 🏗 System Architecture Overview
-![Image 29-10-25 at 1 56 AM](https://github.com/user-attachments/assets/20cbae82-69a1-4ac0-8e28-3fc7dc8aa6bf)
 
 ```mermaid
 graph TB
@@ -384,8 +360,7 @@ sequenceDiagram
 
 ## 🛠️ Technical Stack
 
-- **Blockchain**: Linera (primary), Push Chain, Solana, Arbitrum Sepolia
-- **Smart Contracts**: Solidity (Pyth Entropy Consumer)
+- **Blockchain**: Linera
 - **Frontend**: Next.js, React, Three.js, Material-UI
 - **Wallet Integration**: RainbowKit, ethers.js
 - **Randomness**: Pyth Entropy (Cryptographically secure)
