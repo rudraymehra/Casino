@@ -24,7 +24,7 @@ import "./mines.css";
 import GameDetail from "@/components/GameDetail";
 import AIAutoBetting from "./components/AIAutoBetting";
 import AISettingsModal from "./components/AISettingsModal";
-import pythEntropyService from '@/services/PythEntropyService';
+import lineraGameService from '@/services/LineraGameService';
 
 export default function Mines() {
   // Game State
@@ -111,21 +111,20 @@ export default function Mines() {
   // Handle form submission
   const handleFormSubmit = async (formData) => {
     try {
-      console.log('🔮 PYTH ENTROPY: Initializing Mines game session...');
-      console.log('🔗 Network: Push Chain | Token: PC | Protocol: Pyth Entropy');
+      console.log('🎰 LINERA: Initializing Mines game session...');
+      console.log('🔗 Network: Linera Conway Testnet | Protocol: On-chain Randomness');
       
-      // Initialize Pyth Entropy
-      console.log('🔮 PYTH ENTROPY: Initializing...');
-      await pythEntropyService.initialize();
-      console.log('✅ PYTH ENTROPY: Initialized successfully');
+      // Initialize Linera Game Service
+      console.log('🎰 LINERA: Initializing...');
+      await lineraGameService.initialize();
+      console.log('✅ LINERA: Initialized successfully');
       
-      console.log('✅ PYTH ENTROPY: Mines game session created successfully');
-      console.log(`🎮 Game Config: ${formData.mines || 3} mines | ${formData.betAmount || '0.01'} PC bet`);
+      console.log('✅ LINERA: Mines game session created successfully');
+      console.log(`🎮 Game Config: ${formData.mines || 3} mines | ${formData.betAmount || '0.01'} LINERA bet`);
       
     } catch (error) {
-      console.error('❌ PYTH ENTROPY: Connection failed:', error);
-      console.warn('⚠️  Falling back to demo mode without Pyth Entropy');
-      alert('❌ Pyth Entropy connection failed. Running in demo mode.');
+      console.error('❌ LINERA: Connection failed:', error);
+      console.warn('⚠️  Falling back to local mode');
     }
     
     console.log('Form submitted with data:', formData);
@@ -192,33 +191,28 @@ export default function Mines() {
   const handleGameComplete = async (result) => {
     console.log('Game completed with result:', result);
     
-    // Generate Pyth Entropy for Mines game
-    let entropyProof = null;
+    // Log game result to Linera blockchain
+    let lineraProof = null;
     try {
-      console.log('🔮 PYTH ENTROPY: Generating randomness for Mines game...');
-      const entropyResult = await pythEntropyService.generateRandom('MINES', {
-        purpose: 'mines_game_result',
-        gameType: 'MINES',
-        mines: result.mines || 0,
-        won: result.won || false
-      });
+      console.log('🎰 LINERA: Logging game result to blockchain...');
       
-      entropyProof = {
-        requestId: entropyResult.entropyProof?.requestId,
-        sequenceNumber: entropyResult.entropyProof?.sequenceNumber,
-        randomValue: entropyResult.randomValue,
-        transactionHash: entropyResult.entropyProof?.transactionHash,
-        arbiscanUrl: entropyResult.entropyProof?.arbiscanUrl,
-        explorerUrl: entropyResult.entropyProof?.explorerUrl,
-        timestamp: entropyResult.entropyProof?.timestamp,
-        source: 'Pyth Entropy'
+      // Get game stats from Linera
+      const stats = await lineraGameService.getGameStats();
+      
+      lineraProof = {
+        gameId: `mines_${Date.now()}`,
+        chainId: lineraGameService.chainId,
+        applicationId: lineraGameService.applicationId,
+        timestamp: Date.now(),
+        source: 'Linera Conway Testnet',
+        explorerUrl: `https://explorer.testnet-conway.linera.net/chains/${lineraGameService.chainId}`,
       };
       
-      console.log('✅ PYTH ENTROPY: Mines randomness generated:', entropyProof);
+      console.log('✅ LINERA: Game result logged:', lineraProof);
       
-      // Log game result to Push Chain
+      // Log game result to Linera API
       try {
-        const pushResponse = await fetch('/api/log-to-push', {
+        const lineraResponse = await fetch('/api/log-to-linera', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -230,25 +224,25 @@ export default function Mines() {
               won: result.won || false,
               multiplier: result.multiplier || 0
             },
-            playerAddress: 'unknown', // Will be updated when wallet integration is available
+            playerAddress: address || 'unknown',
             betAmount: result.betAmount || 0,
             payout: result.payout || 0,
-            entropyProof: entropyProof
+            lineraProof: lineraProof
           })
         });
         
-        const pushResult = await pushResponse.json();
-        console.log('🔗 Push Chain logging result (Mines):', pushResult);
+        const lineraApiResult = await lineraResponse.json();
+        console.log('🔗 Linera logging result (Mines):', lineraApiResult);
         
-        if (pushResult.success) {
-          entropyProof.pushChainTxHash = pushResult.transactionHash;
-          entropyProof.pushChainExplorerUrl = pushResult.pushChainExplorerUrl;
+        if (lineraApiResult.success) {
+          lineraProof.txHash = lineraApiResult.transactionHash;
+          lineraProof.explorerUrl = lineraApiResult.explorerUrl;
         }
       } catch (error) {
-        console.error('❌ Push Chain logging failed (Mines):', error);
+        console.error('❌ Linera logging failed (Mines):', error);
       }
 
-      // Log game result to all blockchains (Solana and Linera) in parallel
+      // Game data for history
       const gameLogData = {
         gameType: 'MINES',
         gameResult: {
@@ -257,22 +251,15 @@ export default function Mines() {
           multiplier: result.multiplier,
           payout: result.payout
         },
-        playerAddress: 'unknown', // Will be updated when wallet integration is available
+        playerAddress: address || 'unknown',
         betAmount: result.betAmount || 0,
         payout: result.payout || 0,
-        entropyProof: entropyProof
+        lineraProof: lineraProof
       };
 
-      // Parallel blockchain logging
-      const [solanaResult, lineraResult] = await Promise.allSettled([
-        // Solana logging
-        fetch('/api/log-to-solana', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(gameLogData)
-        }).then(res => res.json()).catch(err => ({ success: false, error: err.message })),
-        
-        // Linera logging
+      // Log to Linera only (primary blockchain)
+      const [lineraFinalResult] = await Promise.allSettled([
+        // Linera logging (primary)
         fetch('/api/log-to-linera', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -280,50 +267,41 @@ export default function Mines() {
         }).then(res => res.json()).catch(err => ({ success: false, error: err.message }))
       ]);
 
-      // Process Solana result
-      const solanaLogResult = solanaResult.status === 'fulfilled' ? solanaResult.value : { success: false, error: solanaResult.reason };
-      console.log('☀️ Solana logging result (Mines):', solanaLogResult);
-      if (solanaLogResult.success) {
-        entropyProof.solanaTxSignature = solanaLogResult.transactionSignature;
-        entropyProof.solanaExplorerUrl = solanaLogResult.solanaExplorerUrl;
-      }
-
       // Process Linera result
-      const lineraLogResult = lineraResult.status === 'fulfilled' ? lineraResult.value : { success: false, error: lineraResult.reason };
-      console.log('⚡ Linera logging result (Mines):', lineraLogResult);
-      if (lineraLogResult.success) {
-        entropyProof.lineraChainId = lineraLogResult.chainId;
-        entropyProof.lineraBlockHeight = lineraLogResult.blockHeight;
-        entropyProof.lineraExplorerUrl = lineraLogResult.lineraExplorerUrl;
+      const lineraLogResultData = lineraFinalResult.status === 'fulfilled' ? lineraFinalResult.value : { success: false, error: lineraFinalResult.reason };
+      console.log('⚡ Linera logging result (Mines):', lineraLogResultData);
+      if (lineraLogResultData.success) {
+        lineraProof.chainId = lineraLogResultData.chainId;
+        lineraProof.blockHeight = lineraLogResultData.blockHeight;
+        lineraProof.explorerUrl = lineraLogResultData.lineraExplorerUrl;
       }
     } catch (error) {
-      console.error('❌ Error using Pyth Entropy for Mines game:', error);
+      console.error('❌ Error logging to Linera for Mines game:', error);
     }
     
     const newHistoryItem = {
       id: Date.now(),
       mines: result.mines || 0,
-      bet: `${result.betAmount || '0.00000'} PC`,
+      bet: `${result.betAmount || '0.00000'} LINERA`,
       outcome: result.won ? 'win' : 'loss',
-      payout: result.won ? `${result.payout || '0.00000'} PC` : '0.00000 PC',
+      payout: result.won ? `${result.payout || '0.00000'} LINERA` : '0.00000 LINERA',
       multiplier: result.won ? `${result.multiplier || '0.00'}x` : '0.00x',
       time: 'Just now',
-      entropyProof: entropyProof
+      lineraProof: lineraProof
     };
     
     setGameHistory(prev => [newHistoryItem, ...prev].slice(0, 50));
     
-    // Fire-and-forget casino session log
+    // Fire-and-forget casino session log to Linera
     try {
-      fetch('/api/casino-session', {
+      fetch('/api/log-to-linera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: result.entropyProof?.requestId || `mines_${Date.now()}`,
+          sessionId: lineraProof?.gameId || `mines_${Date.now()}`,
           gameType: 'MINES',
-          requestId: result.entropyProof?.requestId || `mines_request_${Date.now()}`,
-          valueMon: 0,
-          entropyProof: result.entropyProof
+          requestId: `mines_request_${Date.now()}`,
+          lineraProof: lineraProof
         })
       }).catch(() => {});
     } catch {}

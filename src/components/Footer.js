@@ -61,13 +61,13 @@ export default function Footer() {
         {/* Logo and Description */}
         <div className="md:col-span-4">
           <a href="/" className="logo block mb-6 transition-transform hover:scale-105">
-            <Image src="/PowerPlay.png" alt="PowerPlay logo" width={172} height={15} />
+            <Image src="/PowerPlay.png" alt="PowerPlay logo" width={172} height={15} style={{ width: 'auto', height: 'auto' }} />
           </a>
           <div className="p-[1px] bg-gradient-to-r from-red-magic/40 to-blue-magic/40 rounded-lg mb-6 hover:from-red-magic hover:to-blue-magic transition-all duration-300">
             <div className="bg-[#120010] rounded-lg p-4">
               <p className="text-white/80 text-sm leading-relaxed">
-                APT-Casino is your ultimate destination for Push Chain gaming. Experience transparency, fairness,
-                and excitement powered by Push Chain blockchain technology.
+                APT-Casino is your ultimate destination for blockchain gaming. Experience transparency, fairness,
+                and excitement powered by Linera blockchain technology with instant finality.
               </p>
             </div>
           </div>

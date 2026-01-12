@@ -1,149 +1,163 @@
 /**
  * Linera Blockchain Configuration
- * Linera fast game logic entegrasyonu için konfigürasyon
+ * APT Casino Linera integration configuration
  */
+
+// Deployed Casino Contract Info
+const DEPLOYED_CONTRACT = {
+  chainId: '47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2',
+  applicationId: '387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584',
+  deployedAt: '2026-01-11T13:19:37.751Z',
+  sdkVersion: '0.15.8',
+};
 
 export const LINERA_CONFIG = {
   // Linera Network Configuration
   NETWORK: {
-    name: 'Linera Testnet',
-    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost/graphql',
+    name: 'Linera Conway Testnet',
+    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://testnet-conway.linera.net',
     explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
     faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET || 'https://faucet.testnet-conway.linera.net',
-    chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'e476187f6ddfeb9d588c7b45d3df334d5501d6499b3f9ad5595cae86cce16a65',
-    applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e476187f6ddfeb9d588c7b45d3df334d5501d6499b3f9ad5595cae86cce16a65010000000000000000000000e476187f6ddfeb9d588c7b45d3df334d5501d6499b3f9ad5595cae86cce16a65030000000000000000000000',
+    chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || DEPLOYED_CONTRACT.chainId,
+    applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || DEPLOYED_CONTRACT.applicationId,
     currency: 'LINERA',
     currencySymbol: 'LINERA',
     currencyDecimals: 18
   },
 
-  // Game Logger Application Configuration
-  GAME_LOGGER_CONFIG: {
-    // Application permissions
-    permissions: {
-      canCreateChains: true,
-      canSendMessages: true,
-      canExecuteOperations: true
-    },
+  // Casino Contract Configuration
+  CASINO_CONTRACT: {
+    ...DEPLOYED_CONTRACT,
+    games: ['Roulette', 'Plinko', 'Mines', 'Wheel'],
     
-    // Game types supported (Linera'da enum olarak)
+    // Game types for GraphQL mutations
     gameTypes: {
-      MINES: 0,
-      PLINKO: 1,
-      ROULETTE: 2,
-      WHEEL: 3,
-      DICE: 4,
-      CRASH: 5
+      ROULETTE: 'Roulette',
+      PLINKO: 'Plinko', 
+      MINES: 'Mines',
+      WHEEL: 'Wheel',
     },
 
-    // Fast game logic configuration
-    fastGameConfig: {
-      // Temporary chain için fee budget
-      feebudget: '1000000', // 1 LINERA
-      // Block confirmation timeout
-      blockTimeout: 5000, // 5 seconds
-      // Message timeout
-      messageTimeout: 10000, // 10 seconds
-      // Max retries
-      maxRetries: 3
+    // Bet configuration
+    minBet: '1000000000000000000', // 1 LINERA in attos
+    maxBet: '100000000000000000000', // 100 LINERA in attos
+  },
+
+  // Game-specific configuration
+  GAME_CONFIG: {
+    ROULETTE: {
+      betTypes: ['number', 'color', 'odd_even', 'high_low'],
+      numbers: Array.from({ length: 37 }, (_, i) => i),
+      payouts: {
+        straight: 36,
+        color: 2,
+        odd_even: 2,
+        high_low: 2,
+      },
+    },
+    PLINKO: {
+      minRows: 8,
+      maxRows: 16,
+      defaultRows: 12,
+    },
+    MINES: {
+      gridSize: 25,
+      minMines: 1,
+      maxMines: 24,
+      defaultMines: 5,
+    },
+    WHEEL: {
+      segments: 8,
+      multipliers: [2, 1.5, 3, 0, 5, 2, 10, 1],
+    },
+  },
+
+  // Commit-reveal configuration
+  COMMIT_REVEAL: {
+    hashAlgorithm: 'sha3-256',
+    revealTimeout: 300000, // 5 minutes in ms
+    commitSize: 32, // bytes
+  },
+
+  // Transaction configuration
+  TX_CONFIG: {
+    gasLimit: '1000000',
+    confirmationBlocks: 1,
+    timeout: 30000, // 30 seconds
+    maxRetries: 3,
+  },
+
+  /**
+   * Get the GraphQL endpoint for the casino application
+   */
+  getGraphQLEndpoint() {
+    return `${this.NETWORK.rpcUrl}/chains/${this.NETWORK.chainId}/applications/${this.NETWORK.applicationId}`;
+  },
+
+  /**
+   * Get explorer URL for a transaction
+   */
+  getExplorerUrl(txHash) {
+    return `${this.NETWORK.explorerUrl}/chains/${this.NETWORK.chainId}/block/${txHash}`;
+  },
+
+  /**
+   * Get explorer URL for the chain
+   */
+  getChainExplorerUrl() {
+    return `${this.NETWORK.explorerUrl}/chains/${this.NETWORK.chainId}`;
+  },
+
+  /**
+   * Get explorer URL for the application
+   */
+  getApplicationExplorerUrl() {
+    return `${this.NETWORK.explorerUrl}/applications/${this.NETWORK.applicationId}`;
+  },
+
+  /**
+   * Convert tokens to attos
+   */
+  tokensToAttos(tokens) {
+    return BigInt(Math.floor(parseFloat(tokens) * 10 ** 18)).toString();
+  },
+
+  /**
+   * Convert attos to tokens
+   */
+  attosToTokens(attos) {
+    return (BigInt(attos) / BigInt(10 ** 18)).toString();
+  },
+
+  /**
+   * Format game params for contract call
+   */
+  formatGameParams(gameType, params) {
+    switch (gameType) {
+      case 'Roulette':
+        return `${params.betType}:${params.betValue}`;
+      case 'Plinko':
+        return `${params.rows || 12}`;
+      case 'Mines':
+        return `${params.numMines || 5}:${params.revealed || 0}`;
+      case 'Wheel':
+        return '';
+      default:
+        return '';
     }
   },
 
-  // Operations for game logging
-  OPERATIONS: {
-    LOG_GAME_RESULT: 'LogGameResult',
-    CREATE_GAME_SESSION: 'CreateGameSession',
-    END_GAME_SESSION: 'EndGameSession',
-    UPDATE_PLAYER_STATS: 'UpdatePlayerStats'
-  },
-
-  // Message types
-  MESSAGE_TYPES: {
-    GAME_STARTED: 'GameStarted',
-    GAME_ENDED: 'GameEnded',
-    RESULT_LOGGED: 'ResultLogged'
-  },
-
   /**
-   * Get network configuration
-   * @returns {Object} Network configuration
+   * Parse game outcome from contract response
    */
-  getNetworkConfig() {
-    return this.NETWORK;
-  },
-
-  /**
-   * Get game logger application configuration
-   * @returns {Object} Game logger configuration
-   */
-  getGameLoggerConfig() {
-    return this.GAME_LOGGER_CONFIG;
-  },
-
-  /**
-   * Get explorer URL for chain
-   * @param {string} chainId - Chain ID
-   * @returns {string} Explorer URL
-   */
-  getExplorerUrl(chainId) {
-    return `${this.NETWORK.explorerUrl}/chain/${chainId}`;
-  },
-
-  /**
-   * Get explorer URL for block
-   * @param {string} chainId - Chain ID
-   * @param {number} blockHeight - Block height
-   * @returns {string} Explorer URL
-   */
-  getBlockExplorerUrl(chainId, blockHeight) {
-    return `${this.NETWORK.explorerUrl}/chain/${chainId}/block/${blockHeight}`;
-  },
-
-  /**
-   * Get game type enum value
-   * @param {string} gameType - Game type name
-   * @returns {number} Game type enum value
-   */
-  getGameTypeEnum(gameType) {
-    return this.GAME_LOGGER_CONFIG.gameTypes[gameType.toUpperCase()] || 0;
-  },
-
-  /**
-   * Create game data structure for Linera
-   * @param {Object} gameData - Game data
-   * @returns {Object} Formatted game data for Linera
-   */
-  formatGameDataForLinera(gameData) {
+  parseGameOutcome(outcomeString) {
+    const parts = outcomeString.split(':');
     return {
-      gameType: this.getGameTypeEnum(gameData.gameType),
-      playerAddress: gameData.playerAddress,
-      betAmount: gameData.betAmount.toString(),
-      payout: gameData.payout.toString(),
-      gameResult: {
-        outcome: gameData.gameResult.outcome,
-        multiplier: gameData.gameResult.multiplier || 0,
-        details: gameData.gameResult.details || {}
-      },
-      entropyProof: {
-        randomValue: gameData.entropyProof.randomValue,
-        provider: gameData.entropyProof.provider,
-        sequence: gameData.entropyProof.sequence,
-        blockHash: gameData.entropyProof.blockHash
-      },
-      timestamp: gameData.timestamp || Date.now(),
-      sessionId: gameData.sessionId || `session_${Date.now()}`
+      game: parts[0]?.trim(),
+      result: parts[1]?.trim(),
+      details: parts.slice(2).join(':').trim(),
     };
   },
-
-  /**
-   * Validate game data before logging
-   * @param {Object} gameData - Game data to validate
-   * @returns {boolean} True if valid
-   */
-  validateGameData(gameData) {
-    const required = ['gameType', 'playerAddress', 'betAmount', 'payout', 'gameResult', 'entropyProof'];
-    return required.every(field => gameData[field] !== undefined && gameData[field] !== null);
-  }
 };
 
 export default LINERA_CONFIG;

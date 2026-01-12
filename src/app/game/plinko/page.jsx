@@ -13,7 +13,7 @@ import { motion } from "framer-motion";
 import { Typography } from "@mui/material";
 import { GiRollingDices, GiCardRandom, GiPokerHand } from "react-icons/gi";
 import { FaPercentage, FaBalanceScale, FaChartLine, FaCoins, FaTrophy, FaPlay, FaExternalLinkAlt } from "react-icons/fa";
-import pythEntropyService from '../../../services/PythEntropyService';
+import lineraGameService from '../../../services/LineraGameService';
 
 export default function Plinko() {
   const userBalance = useSelector((state) => state.balance.userBalance);
@@ -197,31 +197,33 @@ export default function Plinko() {
   const handleBetHistoryChange = async (newBetResult) => {
     console.log('🔍 handleBetHistoryChange called with:', newBetResult);
     
-    // Use Pyth Entropy for randomness
+    // Use Linera blockchain for randomness
     try {
-      console.log('🎯 Using Pyth Entropy for Plinko randomness...');
-      const randomData = await pythEntropyService.generateRandom('PLINKO', {
+      console.log('🎰 LINERA: Generating Plinko randomness...');
+      const lineraResult = await lineraGameService.placeBetOnChain('Plinko', newBetResult.betAmount || 0.01, {
         purpose: 'plinko_ball_path',
-        gameType: 'PLINKO'
+        gameType: 'PLINKO',
+        rows: 10
       });
-      console.log('🎲 Plinko game completed with Pyth Entropy randomness:', randomData);
+      console.log('🎲 Plinko game completed with Linera randomness:', lineraResult);
       
-      // Add Pyth Entropy info to the bet result
+      // Add Linera proof info to the bet result
       const enhancedBetResult = {
         ...newBetResult,
-        entropyProof: {
-          requestId: randomData.entropyProof?.requestId,
-          sequenceNumber: randomData.entropyProof?.sequenceNumber,
-          randomValue: randomData.randomValue,
-          transactionHash: randomData.entropyProof?.transactionHash,
-          timestamp: randomData.entropyProof?.timestamp
+        lineraProof: {
+          gameId: lineraResult.gameId,
+          commitHash: lineraResult.proof?.commitHash,
+          chainId: lineraResult.proof?.chainId,
+          applicationId: lineraResult.proof?.applicationId,
+          blockchainSubmitted: lineraResult.proof?.blockchainSubmitted,
+          timestamp: lineraResult.proof?.timestamp
         },
         timestamp: new Date().toISOString()
       };
       
-      // Log game result to Push Chain
+      // Log game result to Linera
       try {
-        const pushResponse = await fetch('/api/log-to-push', {
+        const lineraLogResponse = await fetch('/api/log-to-linera', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -234,25 +236,25 @@ export default function Plinko() {
               rows: currentRows,
               riskLevel: currentRiskLevel
             },
-            playerAddress: 'unknown', // Will be updated when wallet integration is available
+            playerAddress: 'unknown',
             betAmount: newBetResult.betAmount || 0,
             payout: newBetResult.payout || 0,
-            entropyProof: enhancedBetResult.entropyProof
+            lineraProof: enhancedBetResult.lineraProof
           })
         });
         
-        const pushResult = await pushResponse.json();
-        console.log('🔗 Push Chain logging result (Plinko):', pushResult);
+        const lineraLogResult = await lineraLogResponse.json();
+        console.log('🔗 Linera logging result (Plinko):', lineraLogResult);
         
-        if (pushResult.success) {
-          enhancedBetResult.entropyProof.pushChainTxHash = pushResult.transactionHash;
-          enhancedBetResult.entropyProof.pushChainExplorerUrl = pushResult.pushChainExplorerUrl;
+        if (lineraLogResult.success) {
+          enhancedBetResult.lineraProof.txHash = lineraLogResult.transactionHash;
+          enhancedBetResult.lineraProof.explorerUrl = lineraLogResult.explorerUrl;
         }
       } catch (error) {
-        console.error('❌ Push Chain logging failed (Plinko):', error);
+        console.error('❌ Linera logging failed (Plinko):', error);
       }
 
-      // Log game result to all blockchains (Push Chain, Solana, Linera) in parallel
+      // Game log data for final logging
       const gameLogData = {
         gameType: 'PLINKO',
         gameResult: {
@@ -261,22 +263,15 @@ export default function Plinko() {
           rows: currentRows,
           riskLevel: currentRiskLevel
         },
-        playerAddress: 'unknown', // Will be updated when wallet integration is available
+        playerAddress: 'unknown',
         betAmount: newBetResult.betAmount || 0,
         payout: newBetResult.payout || 0,
-        entropyProof: enhancedBetResult.entropyProof
+        lineraProof: enhancedBetResult.lineraProof
       };
 
-      // Parallel blockchain logging
-      const [solanaResult, lineraResult] = await Promise.allSettled([
-        // Solana logging
-        fetch('/api/log-to-solana', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(gameLogData)
-        }).then(res => res.json()).catch(err => ({ success: false, error: err.message })),
-        
-        // Linera logging
+      // Final logging to Linera
+      const [lineraFinalLogResult] = await Promise.allSettled([
+        // Linera logging (primary blockchain)
         fetch('/api/log-to-linera', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -284,28 +279,19 @@ export default function Plinko() {
         }).then(res => res.json()).catch(err => ({ success: false, error: err.message }))
       ]);
 
-      // Process Solana result
-      const solanaLogResult = solanaResult.status === 'fulfilled' ? solanaResult.value : { success: false, error: solanaResult.reason };
-      console.log('☀️ Solana logging result (Plinko):', solanaLogResult);
-      if (solanaLogResult.success) {
-        enhancedBetResult.solanaTxSignature = solanaLogResult.transactionSignature;
-        enhancedBetResult.solanaExplorerUrl = solanaLogResult.solanaExplorerUrl;
-      }
-
-      // Process Linera result
-      const lineraLogResult = lineraResult.status === 'fulfilled' ? lineraResult.value : { success: false, error: lineraResult.reason };
-      console.log('⚡ Linera logging result (Plinko):', lineraLogResult);
-      if (lineraLogResult.success) {
-        enhancedBetResult.lineraChainId = lineraLogResult.chainId;
-        enhancedBetResult.lineraBlockHeight = lineraLogResult.blockHeight;
-        enhancedBetResult.lineraExplorerUrl = lineraLogResult.lineraExplorerUrl;
+      // Process Linera final result
+      const lineraFinalData = lineraFinalLogResult.status === 'fulfilled' ? lineraFinalLogResult.value : { success: false, error: lineraFinalLogResult.reason };
+      console.log('⚡ Linera final logging result (Plinko):', lineraFinalData);
+      if (lineraFinalData.success) {
+        enhancedBetResult.lineraProof.chainId = lineraFinalData.chainId;
+        enhancedBetResult.lineraProof.explorerUrl = lineraFinalData.explorerUrl;
       }
       
       console.log('📝 Enhanced bet result:', enhancedBetResult);
       setGameHistory(prev => [enhancedBetResult, ...prev].slice(0, 100)); // Keep up to last 100 entries
       
     } catch (error) {
-      console.error('❌ Error using Yellow Network for Plinko game:', error);
+      console.error('❌ Error using Linera for Plinko game:', error);
       
       // Still add the bet result even if Yellow Network fails
       setGameHistory(prev => [newBetResult, ...prev].slice(0, 100));

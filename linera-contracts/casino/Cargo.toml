@@ -1,0 +1,24 @@
+[package]
+name = "casino"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-graphql.workspace = true
+async-graphql-value.workspace = true
+serde.workspace = true
+sha3.workspace = true
+hex.workspace = true
+linera-sdk.workspace = true
+
+[dev-dependencies]
+linera-sdk = { workspace = true, features = ["test"] }
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread"] }
+
+[[bin]]
+name = "casino_contract"
+path = "src/contract.rs"
+
+[[bin]]
+name = "casino_service"
+path = "src/service.rs"

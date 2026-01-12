@@ -19,7 +19,7 @@ import useWalletStatus from '@/hooks/useWalletStatus';
 // import vrfProofService from '@/services/VRFProofService';
 // import VRFProofRequiredModal from '@/components/VRF/VRFProofRequiredModal';
 // import vrfLogger from '@/services/VRFLoggingService';
-import pythEntropyService from '@/services/PythEntropyService';
+import lineraGameService from '@/services/LineraGameService';
 
 // Import new components
 import WheelVideo from "./components/WheelVideo";
@@ -93,26 +93,27 @@ export default function Home() {
       return;
     }
 
-    // Generate Pyth Entropy in background for provably fair proof
+    // Generate Linera proof in background for provably fair proof
   const generateEntropyInBackground = async (historyItemId, historyItem = null) => {
     try {
-      console.log('🔮 PYTH ENTROPY: Generating background entropy for Wheel game...');
+      console.log('🎰 LINERA: Generating background proof for Wheel game...');
       
-      const entropyResult = await pythEntropyService.generateRandom('WHEEL', { 
+      const targetHistoryItem = historyItem || gameHistory.find(item => item.id === historyItemId);
+      const lineraResult = await lineraGameService.placeBetOnChain('Wheel', targetHistoryItem?.betAmount || 0.01, { 
         purpose: 'wheel_spin', 
-        gameType: 'WHEEL' 
+        gameType: 'WHEEL',
+        segments: 8
       });
       
-      console.log('✅ PYTH ENTROPY: Background entropy generated successfully');
-      console.log('🔗 Transaction:', entropyResult.entropyProof.transactionHash);
+      console.log('✅ LINERA: Proof generated successfully');
+      console.log('🔗 Game ID:', lineraResult.gameId);
       console.log('🎯 Target history item ID:', historyItemId);
       
-      // Log game result to Push Chain
-      const targetHistoryItem = historyItem || gameHistory.find(item => item.id === historyItemId);
+      // Log game result to Linera
       console.log('🎯 Target history item:', targetHistoryItem);
       if (targetHistoryItem) {
         try {
-          const pushResponse = await fetch('/api/log-to-push', {
+          const lineraResponse = await fetch('/api/log-to-linera', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -127,12 +128,12 @@ export default function Home() {
               playerAddress: 'unknown', // Will be updated when wallet integration is available
               betAmount: targetHistoryItem.betAmount || 0,
               payout: targetHistoryItem.payout || 0,
-              entropyProof: {
-                requestId: entropyResult.entropyProof?.requestId,
-                sequenceNumber: entropyResult.entropyProof?.sequenceNumber,
-                randomValue: entropyResult.randomValue,
-                transactionHash: entropyResult.entropyProof?.transactionHash,
-                timestamp: entropyResult.entropyProof?.timestamp
+              lineraProof: {
+                gameId: lineraResult.gameId,
+                commitHash: lineraResult.proof?.commitHash,
+                chainId: lineraResult.proof?.chainId,
+                blockchainSubmitted: lineraResult.proof?.blockchainSubmitted,
+                timestamp: lineraResult.proof?.timestamp
               }
             })
           });

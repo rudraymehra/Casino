@@ -11,6 +11,7 @@ import { setBalance, setLoading, loadBalanceFromStorage } from '@/store/balanceS
 import { useSmartAccount } from '@/hooks/useSmartAccount';
 import { formatSmartAccountAddress } from '@/utils/smartAccountUtils';
 import EthereumConnectWalletButton from "./EthereumConnectWalletButton";
+import LineraConnectButton from "./LineraConnectButton";
 import WithdrawModal from "./WithdrawModal";
 import LiveChat from "./LiveChat";
 import SmartAccountInfo from "./SmartAccountInfo";
@@ -711,6 +712,7 @@ export default function Navbar() {
               alt="powerplay image"
               width={172}
               height={15}
+              style={{ width: 'auto', height: 'auto' }}
               />
             </a>
             
@@ -1047,8 +1049,8 @@ export default function Navbar() {
               Live Chat
             </button>
             
-            {/* Ethereum Wallet Button */}
-            <EthereumConnectWalletButton />
+            {/* Linera Wallet Button */}
+            <LineraConnectButton />
       
           </div>
         </div>

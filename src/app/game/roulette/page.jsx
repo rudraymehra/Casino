@@ -34,7 +34,7 @@ import RouletteHistory from './components/RouletteHistory';
 import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
 import { useSelector, useDispatch } from 'react-redux';
 import { setBalance, setLoading, loadBalanceFromStorage } from '@/store/balanceSlice';
-import pythEntropyService from '@/services/PythEntropyService';
+import lineraGameService from '@/services/LineraGameService';
 
 // Ethereum client functions will be added here when needed
 
@@ -1331,8 +1331,12 @@ export default function GameRoulette() {
     const checkScreenSize = () => {
       // Check if it's a mobile device (touch screen + small width)
       const isMobile = window.innerWidth < 1024 && 'ontouchstart' in window;
+      const isPortraitOrientation = window.innerHeight > window.innerWidth;
+      
       setIsSmallScreen(isMobile);
-      setIsPortrait(window.innerHeight > window.innerWidth);
+      // Only show rotate message on actual mobile devices in portrait mode
+      // Desktop browsers should never see the rotate message
+      setIsPortrait(isMobile && isPortraitOrientation && window.innerWidth < 768);
     };
 
     checkScreenSize();
@@ -1449,15 +1453,14 @@ export default function GameRoulette() {
       e.stopPropagation();
     }
     
-    // Initialize Yellow Network for Roulette
-    if (!pythEntropyService.isInitialized) {
-      console.log('🔮 PYTH ENTROPY: Initializing Roulette game...');
+    // Initialize Linera Game Service for Roulette
+    if (!lineraGameService.isInitialized) {
+      console.log('🎰 LINERA: Initializing Roulette game...');
       
-      pythEntropyService.initialize().then(() => {
-        console.log('✅ PYTH ENTROPY: Roulette initialized');
-        console.log('🎮 Network:', pythEntropyService.network);
+      lineraGameService.initialize().then(() => {
+        console.log('✅ LINERA: Roulette initialized');
       }).catch(error => {
-        console.error('❌ PYTH ENTROPY: Initialization failed:', error);
+        console.error('❌ LINERA: Initialization failed:', error);
       });
     }
       
@@ -2016,27 +2019,27 @@ export default function GameRoulette() {
           }
         };
 
-        // Generate random number using Pyth Entropy
-        pythEntropyService.generateRandom('ROULETTE', {
+        // Generate random number using Linera blockchain
+        lineraGameService.placeBetOnChain('Roulette', totalBetAmount, {
           purpose: 'roulette_spin',
           gameType: 'ROULETTE'
-        }).then(entropyResult => {
-          console.log('🔮 PYTH ENTROPY: Roulette randomness generated:', entropyResult);
+        }).then(lineraResult => {
+          console.log('🎰 LINERA: Roulette result generated:', lineraResult);
           
-          // Add Pyth Entropy proof info to the bet result
-          newBet.entropyProof = {
-            requestId: entropyResult.entropyProof.requestId,
-            sequenceNumber: entropyResult.entropyProof.sequenceNumber,
-            randomValue: entropyResult.randomValue,
-            transactionHash: entropyResult.entropyProof.transactionHash,
-            monadExplorerUrl: entropyResult.entropyProof.monadExplorerUrl,
-            explorerUrl: entropyResult.entropyProof.explorerUrl,
-            timestamp: entropyResult.entropyProof.timestamp,
-            source: 'Pyth Entropy'
+          // Add Linera proof info to the bet result
+          newBet.lineraProof = {
+            gameId: lineraResult.gameId,
+            commitHash: lineraResult.proof?.commitHash,
+            chainId: lineraResult.proof?.chainId,
+            applicationId: lineraResult.proof?.applicationId,
+            explorerUrl: lineraResult.explorerUrl,
+            timestamp: lineraResult.proof?.timestamp,
+            blockchainSubmitted: lineraResult.proof?.blockchainSubmitted,
+            source: 'Linera Conway Testnet'
           };
           
-          // Log game result to Push Chain
-          fetch('/api/log-to-push', {
+          // Log game result to Linera
+          fetch('/api/log-to-linera', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -2052,7 +2055,7 @@ export default function GameRoulette() {
               playerAddress: address || 'unknown',
               betAmount: totalBetAmount,
               payout: netResult,
-              entropyProof: newBet.entropyProof
+              lineraProof: newBet.lineraProof
             })
           }).then(response => response.json())
             .then(pushResult => {

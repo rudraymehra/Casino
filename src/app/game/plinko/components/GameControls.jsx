@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, Minus, Plus } from "lucide-react";
 import { useSelector } from 'react-redux';
 import useWalletStatus from '@/hooks/useWalletStatus';
-import pythEntropyService from '@/services/PythEntropyService';
+import lineraGameService from '@/services/LineraGameService';
 
 export default function GameControls({ onBet, onRowChange, onRiskLevelChange, onBetAmountChange, initialRows = 16, initialRiskLevel = "Medium" }) {
   const userBalance = useSelector((state) => state.balance.userBalance);

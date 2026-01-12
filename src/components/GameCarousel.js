@@ -198,7 +198,7 @@ const GameCarousel = () => {
             priority
             alt={`${game.title} game`}
             className="object-contain drop-shadow-lg"
-            style={{ objectFit: 'contain' }}
+            style={{ objectFit: 'contain', width: 'auto', height: 'auto' }}
           />
         </div>
         

@@ -12,6 +12,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useDispatch, useSelector } from 'react-redux';
 import { setBalance } from '@/store/balanceSlice';
 import useWalletStatus from '@/hooks/useWalletStatus';
+import lineraGameService from '@/services/LineraGameService';
 
 const GRID_SIZES = {
   5: 5, // 5x5 grid - classic mode
@@ -196,7 +197,7 @@ const Game = ({ betSettings = {}, onGameStatusChange, onGameComplete }) => {
     }
   };
   
-  // Initialize the grid with Pyth Entropy randomness
+  // Initialize the grid with Linera blockchain randomness
   const initializeGrid = async (mines = minesCount) => {
     // Ensure mines count is valid (never more than totalTiles - 1)
     const validMines = Math.min(mines, totalTiles - 1);
@@ -215,15 +216,41 @@ const Game = ({ betSettings = {}, onGameStatusChange, onGameComplete }) => {
           }))
       );
 
-    // Place mines using simple random generation
-    let bombsPlaced = 0;
-    while (bombsPlaced < validMines) {
-      const row = Math.floor(Math.random() * gridSize);
-      const col = Math.floor(Math.random() * gridSize);
-      if (!newGrid[row][col].isBomb) {
-        newGrid[row][col].isBomb = true;
-        bombsPlaced++;
-        console.log(`Mine ${bombsPlaced}/${validMines} → [${row}, ${col}]`);
+    try {
+      // Use Linera for provably fair mine placement
+      console.log('🎰 LINERA: Generating provably fair mine positions...');
+      const gameResult = await lineraGameService.startGame('mines', 0, {
+        totalCells: totalTiles,
+        numMines: validMines,
+      });
+
+      if (gameResult.success && gameResult.outcome) {
+        const { minePositions } = gameResult.outcome;
+        console.log('✅ LINERA: Mine positions generated:', minePositions);
+        console.log(`   Commit Hash: ${gameResult.commitHash}`);
+        
+        // Place mines at Linera-determined positions
+        minePositions.forEach((pos, index) => {
+          const row = Math.floor(pos / gridSize);
+          const col = pos % gridSize;
+          newGrid[row][col].isBomb = true;
+          console.log(`Mine ${index + 1}/${validMines} → [${row}, ${col}] (position ${pos})`);
+        });
+      } else {
+        throw new Error('Linera game initialization failed');
+      }
+    } catch (error) {
+      console.warn('⚠️ LINERA fallback: Using local randomness', error);
+      // Fallback to local random if Linera fails
+      let bombsPlaced = 0;
+      while (bombsPlaced < validMines) {
+        const row = Math.floor(Math.random() * gridSize);
+        const col = Math.floor(Math.random() * gridSize);
+        if (!newGrid[row][col].isBomb) {
+          newGrid[row][col].isBomb = true;
+          bombsPlaced++;
+          console.log(`Mine ${bombsPlaced}/${validMines} → [${row}, ${col}] (fallback)`);
+        }
       }
     }
 
