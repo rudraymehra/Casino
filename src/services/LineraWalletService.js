@@ -8,7 +8,8 @@
  * 3. Dev Mode - Mock wallet for development
  */
 
-import { MetaMaskSDK } from '@metamask/sdk';
+// MetaMask SDK import removed - Push Universal Wallet handles connections
+// import { MetaMaskSDK } from '@metamask/sdk';
 
 const LINERA_CONFIG = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || '47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2',
@@ -82,6 +83,9 @@ class LineraWalletService {
 
   /**
    * Initialize the wallet service
+   * NOTE: MetaMask SDK initialization is DISABLED because Push Universal Wallet
+   * handles wallet connections (including MetaMask) internally.
+   * Having two MetaMask SDKs causes connection conflicts.
    */
   async initialize() {
     try {
@@ -89,29 +93,24 @@ class LineraWalletService {
       console.log(`   Chain ID: ${LINERA_CONFIG.chainId}`);
       console.log(`   App ID: ${LINERA_CONFIG.applicationId}`);
       
-      // Initialize MetaMask SDK for mobile QR code connections
+      // DISABLED: MetaMask SDK initialization
+      // Push Universal Wallet handles MetaMask/WalletConnect connections
+      // Initializing a separate MetaMask SDK causes conflicts with QR code scanning
+      /*
       if (typeof window !== 'undefined' && !metamaskSDK) {
         try {
-          metamaskSDK = new MetaMaskSDK({
-            dappMetadata: {
-              name: 'APT Casino - Linera',
-              url: typeof window !== 'undefined' ? window.location.href : 'https://apt-casino.linera.dev',
-            },
-            checkInstallationImmediately: false,
-            preferDesktop: false,
-            useDeeplink: true,
-            logging: {
-              developerMode: process.env.NODE_ENV === 'development',
-            },
-          });
-          
+          metamaskSDK = new MetaMaskSDK({...});
           await metamaskSDK.init();
-          this.metamaskProvider = metamaskSDK.getProvider();
-          console.log('✅ MetaMask SDK initialized for mobile connections');
         } catch (sdkError) {
-          console.warn('⚠️ MetaMask SDK init failed, will use window.ethereum:', sdkError.message);
-          this.metamaskProvider = window.ethereum;
+          console.warn('MetaMask SDK init failed');
         }
+      }
+      */
+      
+      // Use window.ethereum directly if available (for legacy support)
+      if (typeof window !== 'undefined' && window.ethereum) {
+        this.metamaskProvider = window.ethereum;
+        console.log('📱 Using window.ethereum for MetaMask (Push wallet handles connections)');
       }
       
       // Detect available wallet provider
