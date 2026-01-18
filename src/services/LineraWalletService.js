@@ -49,6 +49,84 @@ class LineraWalletService {
     this.walletProvider = null;
     this.checkoWallet = null;
     this.metamaskProvider = null;
+    
+    // Restore persisted state on construction
+    this._restorePersistedState();
+  }
+  
+  /**
+   * Persist wallet state to localStorage
+   */
+  _persistState() {
+    if (typeof window === 'undefined') return;
+    
+    const state = {
+      connectedChain: this.connectedChain,
+      userOwner: this.userOwner,
+      userAddress: this.userAddress,
+      balance: this.balance,
+      walletProvider: this.walletProvider,
+      timestamp: Date.now(),
+    };
+    
+    localStorage.setItem('linera_wallet_state', JSON.stringify(state));
+    console.log('💾 Linera wallet state persisted');
+  }
+  
+  /**
+   * Restore wallet state from localStorage
+   */
+  _restorePersistedState() {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const saved = localStorage.getItem('linera_wallet_state');
+      if (!saved) return;
+      
+      const state = JSON.parse(saved);
+      
+      // Check if state is not too old (24 hours)
+      const maxAge = 24 * 60 * 60 * 1000;
+      if (Date.now() - state.timestamp > maxAge) {
+        localStorage.removeItem('linera_wallet_state');
+        return;
+      }
+      
+      // Restore state
+      this.connectedChain = state.connectedChain;
+      this.userOwner = state.userOwner;
+      this.userAddress = state.userAddress;
+      this.balance = state.balance || 0;
+      this.walletProvider = state.walletProvider;
+      
+      console.log('🔄 Linera wallet state restored:', {
+        address: this.userAddress,
+        balance: this.balance,
+      });
+      
+      // Notify listeners of restored connection
+      if (this.userAddress && this.userOwner) {
+        setTimeout(() => {
+          this._notifyListeners('connected', {
+            owner: this.userOwner,
+            address: this.userAddress,
+            chain: this.connectedChain,
+            balance: this.balance,
+          });
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Failed to restore Linera wallet state:', error);
+    }
+  }
+  
+  /**
+   * Clear persisted state
+   */
+  _clearPersistedState() {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('linera_wallet_state');
+    console.log('🗑️ Linera wallet state cleared');
   }
 
   /**
@@ -413,6 +491,9 @@ class LineraWalletService {
         balance: this.balance,
         provider: this.walletProvider,
       });
+      
+      // Persist state for page navigation
+      this._persistState();
 
       return result;
     } catch (error) {
@@ -430,6 +511,7 @@ class LineraWalletService {
     this.userAddress = null;
     this.connectedChain = null;
     this.balance = 0;
+    this._clearPersistedState();
     this._notifyListeners('disconnected', null);
   }
 
