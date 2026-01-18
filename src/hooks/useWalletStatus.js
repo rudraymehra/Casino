@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from 'react';
 import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
 const WalletStatusContext = createContext(null);
 
@@ -118,9 +119,45 @@ export function WalletStatusProvider({ children }) {
     setError(null);
   }, []);
 
-  // Use dev wallet in dev mode, otherwise use Push wallet
+  // Check Linera wallet status
+  const [lineraConnected, setLineraConnected] = useState(false);
+  const [lineraAddress, setLineraAddress] = useState(null);
+  
+  useEffect(() => {
+    // Check if Linera wallet is connected
+    const checkLineraWallet = () => {
+      const connected = lineraWalletService.isConnected();
+      const addr = lineraWalletService.userAddress;
+      setLineraConnected(connected);
+      setLineraAddress(addr);
+    };
+    
+    // Check immediately
+    checkLineraWallet();
+    
+    // Listen for Linera wallet changes
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setLineraConnected(true);
+        setLineraAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setLineraConnected(false);
+        setLineraAddress(null);
+      }
+    });
+    
+    // Poll for changes (backup)
+    const interval = setInterval(checkLineraWallet, 1000);
+    
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, []);
+  
+  // Use dev wallet in dev mode, otherwise use Push wallet OR Linera wallet
   const pushConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const isConnected = isDev ? devWallet.isConnected : pushConnected;
+  const isConnected = isDev ? devWallet.isConnected : (pushConnected || lineraConnected);
   
   // Extract address from Push Chain account (handles both string and object formats)
   const extractPushAddress = () => {
@@ -145,8 +182,9 @@ export function WalletStatusProvider({ children }) {
     return null;
   };
   
-  const address = isDev ? devWallet.address : extractPushAddress();
-  const chain = isDev ? devWallet.chain : (pushConnected ? { id: 'push_chain_testnet', name: 'Push Chain Testnet' } : null);
+  const pushAddress = extractPushAddress();
+  const address = isDev ? devWallet.address : (pushAddress || lineraAddress);
+  const chain = isDev ? devWallet.chain : ((pushConnected || lineraConnected) ? { id: 'linera_testnet', name: 'Linera Testnet' } : null);
 
   const currentStatus = {
     isConnected,
