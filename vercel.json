@@ -1,5 +1,6 @@
 {
-  "installCommand": "rm -rf node_modules && yarn install --frozen-lockfile",
-  "buildCommand": "yarn build"
+  "installCommand": "yarn install",
+  "buildCommand": "yarn build",
+  "framework": "nextjs"
 }
 
