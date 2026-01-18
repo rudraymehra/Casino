@@ -186,26 +186,15 @@ class LineraWalletService {
       }
       
       // First, check if MetaMask browser extension is installed
-      if (window.ethereum.isMetaMask) {
-        console.log('📦 MetaMask browser extension detected, requesting accounts...');
+      if (window.ethereum.isMetaMask || window.ethereum) {
+        console.log('📦 Wallet detected, requesting accounts...');
         
         try {
-          // Check if MetaMask is already unlocked by trying to get accounts first
-          const existingAccounts = await window.ethereum.request({
-            method: 'eth_accounts',
+          // Directly request account access - this triggers the MetaMask popup
+          console.log('🔓 Requesting wallet connection...');
+          const accounts = await window.ethereum.request({
+            method: 'eth_requestAccounts',
           });
-          
-          let accounts;
-          if (existingAccounts && existingAccounts.length > 0) {
-            console.log('✅ MetaMask already connected, using existing account');
-            accounts = existingAccounts;
-          } else {
-            // Request account access - this should trigger the MetaMask popup
-            console.log('🔓 Requesting MetaMask unlock/connection...');
-            accounts = await window.ethereum.request({
-              method: 'eth_requestAccounts',
-            });
-          }
 
           if (accounts && accounts.length > 0) {
             const ethAddress = accounts[0];
@@ -214,7 +203,7 @@ class LineraWalletService {
             this.connectedChain = LINERA_CONFIG.chainId;
             this.balance = 1000; // Starting balance for demo
 
-            console.log('✅ MetaMask extension connected:', this.userOwner);
+            console.log('✅ Wallet connected:', this.userOwner);
             
             // Emit connected event
             this.emit('connected', {
@@ -232,14 +221,18 @@ class LineraWalletService {
               provider: WALLET_PROVIDERS.METAMASK,
             };
           } else {
-            throw new Error('No accounts returned. Please unlock MetaMask and try again.');
+            throw new Error('No accounts returned. Please unlock your wallet and try again.');
           }
         } catch (extError) {
           // Check for user rejection
           if (extError.code === 4001) {
-            throw new Error('Connection rejected. Please approve the connection in MetaMask.');
+            throw new Error('Connection rejected. Please approve the connection in your wallet.');
           }
-          console.log('Extension connection failed:', extError.message);
+          // Check for pending request
+          if (extError.code === -32002) {
+            throw new Error('Connection request pending. Please check your wallet for a pending request.');
+          }
+          console.log('Wallet connection failed:', extError.message);
           throw extError;
         }
       }
