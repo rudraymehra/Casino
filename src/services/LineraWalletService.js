@@ -185,14 +185,24 @@ class LineraWalletService {
         throw new Error('No wallet detected. Please install MetaMask browser extension.');
       }
       
-      // First, check if MetaMask browser extension is installed
-      if (window.ethereum.isMetaMask || window.ethereum) {
+      // Find the real MetaMask provider (when multiple wallets are installed)
+      let provider = window.ethereum;
+      if (window.ethereum.providers && Array.isArray(window.ethereum.providers)) {
+        // Multiple providers - find MetaMask specifically
+        const metamaskProvider = window.ethereum.providers.find(p => p.isMetaMask);
+        if (metamaskProvider) {
+          provider = metamaskProvider;
+          console.log('📦 Found MetaMask in providers array');
+        }
+      }
+      
+      if (provider) {
         console.log('📦 Wallet detected, requesting accounts...');
         
         try {
           // Directly request account access - this triggers the MetaMask popup
           console.log('🔓 Requesting wallet connection...');
-          const accounts = await window.ethereum.request({
+          const accounts = await provider.request({
             method: 'eth_requestAccounts',
           });
 
@@ -238,15 +248,15 @@ class LineraWalletService {
       }
 
       // Fall back to SDK provider for mobile QR code connection
-      const provider = this.metamaskProvider || window.ethereum;
+      const fallbackProvider = this.metamaskProvider || window.ethereum;
       
-      if (!provider) {
+      if (!fallbackProvider) {
         throw new Error('MetaMask not available. Please install MetaMask browser extension or use mobile app.');
       }
 
       console.log('📱 Using MetaMask SDK for mobile connection...');
       
-      const accounts = await provider.request({
+      const accounts = await fallbackProvider.request({
         method: 'eth_requestAccounts',
       });
 
