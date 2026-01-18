@@ -1193,8 +1193,15 @@ export default function GameRoulette() {
   // Push Universal Wallet
   const { connectionStatus } = usePushWalletContext();
   const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const isPushConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
+  const pushAddress = pushChainClient?.universal?.account || null;
+  
+  // Linera Wallet - use the shared wallet status hook
+  const walletStatus = useWalletStatus();
+  
+  // Consider connected if EITHER Push wallet OR Linera wallet is connected
+  const isConnected = isPushConnected || walletStatus.isConnected;
+  const address = pushAddress || walletStatus.address;
   const account = { address };
   const connected = isConnected;
   const isWalletReady = isConnected && address;
