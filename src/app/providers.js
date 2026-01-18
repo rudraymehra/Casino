@@ -73,13 +73,23 @@ const muiTheme = createTheme({
 
 export default function Providers({ children }) {
   const [mounted, setMounted] = React.useState(false);
+  const [loadingTimeout, setLoadingTimeout] = React.useState(false);
 
   React.useEffect(() => {
+    // Set mounted immediately
     setMounted(true);
+    
+    // Fallback timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      setLoadingTimeout(true);
+    }, 5000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
+  // But show content after timeout to prevent infinite loading
+  if (!mounted && !loadingTimeout) {
     return (
       <div style={{ 
         display: 'flex', 
