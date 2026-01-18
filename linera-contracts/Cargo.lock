@@ -522,6 +522,7 @@ dependencies = [
  "hex",
  "linera-sdk",
  "serde",
+ "serde_json",
  "sha3",
  "tokio",
 ]

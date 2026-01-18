@@ -7,7 +7,7 @@
 const DEPLOYED_CONTRACT = {
   chainId: '47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2',
   applicationId: '387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584',
-  deployedAt: '2026-01-11T13:19:37.751Z',
+  deployedAt: '2026-01-13T15:39:57Z',
   sdkVersion: '0.15.8',
 };
 
@@ -156,6 +156,55 @@ export const LINERA_CONFIG = {
       game: parts[0]?.trim(),
       result: parts[1]?.trim(),
       details: parts.slice(2).join(':').trim(),
+    };
+  },
+
+  /**
+   * Validate game data structure
+   */
+  validateGameData(gameData) {
+    if (!gameData) return false;
+    
+    // Check required fields
+    const requiredFields = ['gameType', 'playerAddress', 'betAmount'];
+    for (const field of requiredFields) {
+      if (gameData[field] === undefined || gameData[field] === null) {
+        console.warn(`Missing required field: ${field}`);
+        return false;
+      }
+    }
+    
+    // Validate game type
+    const validGameTypes = Object.values(this.CASINO_CONTRACT.gameTypes);
+    if (!validGameTypes.includes(gameData.gameType)) {
+      console.warn(`Invalid game type: ${gameData.gameType}`);
+      return false;
+    }
+    
+    // Validate bet amount is a positive number
+    const betAmount = parseFloat(gameData.betAmount);
+    if (isNaN(betAmount) || betAmount <= 0) {
+      console.warn(`Invalid bet amount: ${gameData.betAmount}`);
+      return false;
+    }
+    
+    return true;
+  },
+
+  /**
+   * Format game data for Linera blockchain logging
+   */
+  formatGameDataForLinera(gameData) {
+    return {
+      gameType: gameData.gameType,
+      playerAddress: gameData.playerAddress,
+      betAmount: this.tokensToAttos(gameData.betAmount),
+      payout: gameData.payout ? this.tokensToAttos(gameData.payout) : '0',
+      outcome: gameData.outcome || 'unknown',
+      timestamp: gameData.timestamp || new Date().toISOString(),
+      gameParams: gameData.gameParams || {},
+      chainId: this.NETWORK.chainId,
+      applicationId: this.NETWORK.applicationId,
     };
   },
 };

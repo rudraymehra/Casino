@@ -9,8 +9,8 @@ let supabase = null;
 if (!supabaseUrl || !supabaseAnonKey) {
   // Surface a readable warning in development; avoid hardcoding fallbacks
   if (typeof window !== 'undefined') {
-    console.warn('Supabase env vars are missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
-  }
+  console.warn('Supabase env vars are missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+}
   // Create a mock client that returns empty data
   supabase = {
     from: () => ({
@@ -34,11 +34,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   };
 } else {
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
 }
 
 export { supabase };

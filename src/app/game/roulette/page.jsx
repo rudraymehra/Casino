@@ -2354,8 +2354,17 @@ export default function GameRoulette() {
       // Fall back to window.ethereum check with retry
       const checkWithRetry = async (attempts = 3) => {
         if (window.ethereum && typeof window.ethereum.request === 'function') {
-          console.log("Ethereum provider found, requesting chain ID...");
           try {
+            // First check if any accounts are available (without prompting)
+            const accounts = await window.ethereum.request({ method: "eth_accounts" });
+            if (!accounts || accounts.length === 0) {
+              // No accounts connected - that's OK, just set network as "not checked"
+              console.log("No accounts connected, skipping chain ID check");
+              setCorrectNetwork(true); // Allow gameplay without wallet
+              return;
+            }
+            
+            console.log("Ethereum provider found with accounts, requesting chain ID...");
             const chainId = await window.ethereum.request({ method: "eth_chainId" });
             console.log("Current chain ID:", chainId);
 
@@ -2364,22 +2373,20 @@ export default function GameRoulette() {
             console.log("Is correct network:", isCorrectNetwork);
             setCorrectNetwork(isCorrectNetwork);
           } catch (error) {
-            console.error("Error checking chain ID:", error);
-            if (attempts > 1) {
-              console.log(`Retrying... (${attempts - 1} attempts left)`);
+            // Don't log as error if it's just not connected
+            if (error.code === 4001 || error.message?.includes('not connected')) {
+              console.log("Wallet not connected, allowing gameplay");
+              setCorrectNetwork(true);
+            } else if (attempts > 1) {
+              console.log(`Chain check failed, retrying... (${attempts - 1} attempts left)`);
               setTimeout(() => checkWithRetry(attempts - 1), 500);
             } else {
               setCorrectNetwork(false);
             }
           }
         } else {
-          console.log("Ethereum provider not available or not fully initialized");
-          if (attempts > 1) {
-            console.log(`Retrying... (${attempts - 1} attempts left)`);
-            setTimeout(() => checkWithRetry(attempts - 1), 500);
-          } else {
-            setCorrectNetwork(false);
-          }
+          console.log("Ethereum provider not available, allowing gameplay");
+          setCorrectNetwork(true); // Allow gameplay without MetaMask
         }
       };
 

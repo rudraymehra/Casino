@@ -1,13 +1,9 @@
 {
-  "network": "linera-conway-testnet",
-  "applicationId": "387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584",
   "chainId": "47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2",
-  "deployedAt": "2026-01-11T13:19:37.751Z",
-  "contractWasm": "linera-contracts/target/wasm32-unknown-unknown/release/casino_contract.wasm",
-  "serviceWasm": "linera-contracts/target/wasm32-unknown-unknown/release/casino_service.wasm",
-  "sdkVersion": "0.15.8",
-  "sdkCommit": "32c047f7891e08503019302b0258c17c2c7c4180",
-  "games": ["Roulette", "Plinko", "Mines", "Wheel"],
-  "graphqlEndpoint": "https://testnet-conway.linera.net/chains/47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2/applications/387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584"
+  "applicationId": "387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584",
+  "owner": "0xe9a97b90773ad2d7377c0d237a6bed299052f261e90d821617a312079206dfee",
+  "network": "testnet-conway",
+  "deployedAt": "2026-01-13T15:39:57Z",
+  "faucetUrl": "https://faucet.testnet-conway.linera.net",
+  "explorerUrl": "https://explorer.testnet-conway.linera.net"
 }
-

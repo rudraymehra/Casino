@@ -12,8 +12,8 @@ const execAsync = promisify(exec);
 
 // Linera Configuration
 const LINERA_CONFIG = {
-  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || '47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2',
-  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584',
+  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '06c20527e6caf34893a14f1019da3c7487530060ed77830ed763b7032566264c',
   rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://testnet-conway.linera.net',
 };
 

@@ -17,6 +17,7 @@ import LiveChat from "./LiveChat";
 import SmartAccountInfo from "./SmartAccountInfo";
 import SmartAccountModal from "./SmartAccountModal";
 import { useGlobalWalletPersistence } from '../hooks/useGlobalWalletPersistence';
+import useWalletStatus from '../hooks/useWalletStatus';
 
 
 import { useNotification } from './NotificationSystem';
@@ -130,11 +131,14 @@ export default function Navbar() {
   const [showLiveChat, setShowLiveChat] = useState(false);
 
 
-  // Push Universal Wallet connection
+  // Push Universal Wallet connection - use shared hook for dev mode support
   const { connectionStatus } = usePushWalletContext();
   const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const walletStatus = useWalletStatus();
+  
+  // Use the shared wallet status which supports dev mode
+  const isConnected = walletStatus.isConnected;
+  const address = walletStatus.address;
   const isWalletReady = isConnected && address;
   
   // Smart Account hook

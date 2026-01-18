@@ -5,15 +5,14 @@ const loadInitialState = () => {
   if (typeof window !== 'undefined') {
     const savedBalance = localStorage.getItem('userBalance');
     const savedLoading = localStorage.getItem('isLoading');
+    const walletConnected = localStorage.getItem('wagmi.connected') === 'true';
     
-    // Normal balance validation (restored)
+    // Only restore balance if wallet was previously connected
     let cleanBalance = "0";
-    if (savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {
+    if (walletConnected && savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {
       cleanBalance = savedBalance;
-    } else {
-      // Reset invalid balance to 0
-      localStorage.setItem('userBalance', "0");
     }
+    // Don't auto-set demo balance without wallet connection
     
     return {
       userBalance: cleanBalance,
