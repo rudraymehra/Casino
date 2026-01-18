@@ -180,15 +180,32 @@ class LineraWalletService {
     try {
       console.log('🦊 Connecting via MetaMask...');
       
-      // First, check if MetaMask browser extension is installed and has accounts
-      // This is more reliable for localhost development
-      if (window.ethereum && window.ethereum.isMetaMask) {
-        console.log('📦 MetaMask browser extension detected, using direct connection');
+      // Check if any ethereum provider exists
+      if (!window.ethereum) {
+        throw new Error('No wallet detected. Please install MetaMask browser extension.');
+      }
+      
+      // First, check if MetaMask browser extension is installed
+      if (window.ethereum.isMetaMask) {
+        console.log('📦 MetaMask browser extension detected, requesting accounts...');
         
         try {
-          const accounts = await window.ethereum.request({
-            method: 'eth_requestAccounts',
+          // Check if MetaMask is already unlocked by trying to get accounts first
+          const existingAccounts = await window.ethereum.request({
+            method: 'eth_accounts',
           });
+          
+          let accounts;
+          if (existingAccounts && existingAccounts.length > 0) {
+            console.log('✅ MetaMask already connected, using existing account');
+            accounts = existingAccounts;
+          } else {
+            // Request account access - this should trigger the MetaMask popup
+            console.log('🔓 Requesting MetaMask unlock/connection...');
+            accounts = await window.ethereum.request({
+              method: 'eth_requestAccounts',
+            });
+          }
 
           if (accounts && accounts.length > 0) {
             const ethAddress = accounts[0];
@@ -198,6 +215,15 @@ class LineraWalletService {
             this.balance = 1000; // Starting balance for demo
 
             console.log('✅ MetaMask extension connected:', this.userOwner);
+            
+            // Emit connected event
+            this.emit('connected', {
+              owner: this.userOwner,
+              address: this.userAddress,
+              chain: this.connectedChain,
+              balance: this.balance,
+            });
+            
             return {
               owner: this.userOwner,
               chain: this.connectedChain,
@@ -205,9 +231,16 @@ class LineraWalletService {
               balance: this.balance,
               provider: WALLET_PROVIDERS.METAMASK,
             };
+          } else {
+            throw new Error('No accounts returned. Please unlock MetaMask and try again.');
           }
         } catch (extError) {
-          console.log('Extension connection failed, trying SDK:', extError.message);
+          // Check for user rejection
+          if (extError.code === 4001) {
+            throw new Error('Connection rejected. Please approve the connection in MetaMask.');
+          }
+          console.log('Extension connection failed:', extError.message);
+          throw extError;
         }
       }
 
