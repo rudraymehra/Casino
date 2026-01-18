@@ -125,19 +125,31 @@ const GameCarousel = () => {
     }
   };
 
-  // Mouse drag scrolling
+  // Mouse drag scrolling - with click protection
+  const [hasDragged, setHasDragged] = useState(false);
+  
   const handleMouseDown = (e) => {
+    // Don't interfere with button/link clicks
+    if (e.target.closest('a') || e.target.closest('button')) {
+      return;
+    }
     setIsDragging(true);
+    setHasDragged(false);
     setStartX(e.pageX - scrollContainerRef.current.offsetLeft);
     setScrollLeft(scrollContainerRef.current.scrollLeft);
   };
 
   const handleMouseMove = (e) => {
     if (!isDragging) return;
-    e.preventDefault();
     const x = e.pageX - scrollContainerRef.current.offsetLeft;
     const walk = (x - startX) * 2; // Scroll speed multiplier
-    scrollContainerRef.current.scrollLeft = scrollLeft - walk;
+    
+    // Only consider it a drag if moved more than 5 pixels
+    if (Math.abs(x - startX) > 5) {
+      setHasDragged(true);
+      e.preventDefault();
+      scrollContainerRef.current.scrollLeft = scrollLeft - walk;
+    }
   };
 
   const handleMouseUp = () => {
@@ -181,11 +193,16 @@ const GameCarousel = () => {
           </div>
           
           <div className="w-full mt-4">
-            <a href={game.path} className="block w-full">
-              <GradientBorderButton className="w-full">
-                Play Now
-              </GradientBorderButton>
-            </a>
+            <GradientBorderButton 
+              href={game.path} 
+              className="w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.location.href = game.path;
+              }}
+            >
+              Play Now
+            </GradientBorderButton>
           </div>
         </div>
         
