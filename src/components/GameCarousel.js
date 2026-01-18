@@ -181,11 +181,11 @@ const GameCarousel = () => {
           </div>
           
           <div className="w-full mt-4">
-            <Link href={game.path}>
+            <a href={game.path} className="block w-full">
               <GradientBorderButton className="w-full">
                 Play Now
               </GradientBorderButton>
-            </Link>
+            </a>
           </div>
         </div>
         
