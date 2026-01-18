@@ -122,14 +122,26 @@ export function WalletStatusProvider({ children }) {
   // Check Linera wallet status
   const [lineraConnected, setLineraConnected] = useState(false);
   const [lineraAddress, setLineraAddress] = useState(null);
+  const [lineraBalance, setLineraBalance] = useState(0);
   
   useEffect(() => {
     // Check if Linera wallet is connected
     const checkLineraWallet = () => {
       const connected = lineraWalletService.isConnected();
       const addr = lineraWalletService.userAddress;
+      const bal = lineraWalletService.getBalance();
       setLineraConnected(connected);
       setLineraAddress(addr);
+      setLineraBalance(bal);
+      
+      // Sync Linera balance to localStorage for games to use
+      if (connected && bal > 0) {
+        const currentBalance = localStorage.getItem('userBalance');
+        if (!currentBalance || parseFloat(currentBalance) === 0) {
+          localStorage.setItem('userBalance', bal.toString());
+          console.log('💰 Synced Linera balance to game balance:', bal);
+        }
+      }
     };
     
     // Check immediately
@@ -140,9 +152,25 @@ export function WalletStatusProvider({ children }) {
       if (event === 'connected') {
         setLineraConnected(true);
         setLineraAddress(data?.address);
+        const bal = data?.balance || lineraWalletService.getBalance();
+        setLineraBalance(bal);
+        
+        // Sync balance to localStorage
+        if (bal > 0) {
+          localStorage.setItem('userBalance', bal.toString());
+          console.log('💰 Linera connected - synced balance:', bal);
+          // Trigger a storage event for other components
+          window.dispatchEvent(new Event('storage'));
+        }
       } else if (event === 'disconnected') {
         setLineraConnected(false);
         setLineraAddress(null);
+        setLineraBalance(0);
+      } else if (event === 'balanceChanged') {
+        const newBal = data?.balance || 0;
+        setLineraBalance(newBal);
+        localStorage.setItem('userBalance', newBal.toString());
+        window.dispatchEvent(new Event('storage'));
       }
     });
     
@@ -190,6 +218,7 @@ export function WalletStatusProvider({ children }) {
     isConnected,
     address,
     chain,
+    lineraBalance,
   };
 
   // Debug currentStatus calculation
