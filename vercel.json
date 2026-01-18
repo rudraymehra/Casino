@@ -1,5 +1,5 @@
 {
-  "buildCommand": "yarn install --frozen-lockfile && yarn build",
-  "installCommand": "yarn install --frozen-lockfile"
+  "installCommand": "rm -rf node_modules && yarn install --frozen-lockfile",
+  "buildCommand": "yarn build"
 }
 
