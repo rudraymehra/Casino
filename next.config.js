@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Use webpack instead of turbopack for custom webpack config compatibility
+  turbopack: {},
   transpilePackages: ['three'],
   images: {
     domains: ['images.unsplash.com'],
