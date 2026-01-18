@@ -1,19 +1,36 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLineraWallet } from '@/hooks/useLineraWallet';
+import { useSelector } from 'react-redux';
 
 export default function LineraConnectButton() {
   const { 
     isConnected, 
     isConnecting, 
     address, 
-    balance, 
+    balance: lineraBalance, 
     connect, 
     disconnect, 
     requestFaucet,
     error 
   } = useLineraWallet();
+  
+  // Use Redux balance to stay in sync with game balance
+  const { userBalance } = useSelector((state) => state.balance);
+  const [displayBalance, setDisplayBalance] = useState(0);
+  
+  // Sync display balance with game balance (PC balance)
+  useEffect(() => {
+    const gameBalance = parseFloat(userBalance || '0');
+    if (gameBalance > 0) {
+      setDisplayBalance(gameBalance);
+    } else {
+      setDisplayBalance(lineraBalance);
+    }
+  }, [userBalance, lineraBalance]);
+  
+  const balance = displayBalance;
   
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFaucetLoading, setIsFaucetLoading] = useState(false);
