@@ -6,6 +6,8 @@
  * 1. CheCko Wallet (respeer-ai/linera-wallet) - Native Linera browser extension
  * 2. MetaMask Bridge - Uses MetaMask for address identification
  * 3. Dev Mode - Mock wallet for development
+ * 
+ * v1.1.0 - Fixed _notifyListeners method calls
  */
 
 // MetaMask SDK import removed - Push Universal Wallet handles connections
