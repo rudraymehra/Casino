@@ -1053,8 +1053,8 @@ export default function Navbar() {
               Live Chat
             </button>
             
-            {/* Wallet Button */}
-            <EthereumConnectWalletButton />
+            {/* Linera Wallet Button */}
+            <LineraConnectButton />
       
           </div>
         </div>
