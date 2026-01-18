@@ -14,6 +14,7 @@ const MostPlayed = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [featuredGameIndex, setFeaturedGameIndex] = useState(0);
   
+  // Only include games that have actual pages
   const games = [
     { 
       name: "Roulette", 
@@ -51,106 +52,14 @@ const MostPlayed = () => {
       isHot: true,
       winRate: "96.8%",
     },
-    { 
-      name: "Fortune Tiger", 
-      img: "/images/games/fortune-tiger.png", 
-      link: "/game/fortune-tiger",
-      players: 651,
-      categories: ["slots", "jackpot"],
-      isHot: true,
-      winRate: "96.8%",
-    },
-    { 
-      name: "Poker", 
-      img: "/images/games/poker.png", 
-      link: "/game/poker",
-      players: 347,
-      categories: ["card", "table"],
-      isHot: false,
-      winRate: "98.2%",
-    },
-    { 
-      name: "Gates of Olympus", 
-      img: "/images/games/gates-of-olympus.png", 
-      link: "/game/gates-of-olympus",
-      players: 523,
-      categories: ["slots", "featured"],
-      isHot: true,
-      winRate: "96.5%",
-    },
-    { 
-      name: "Carp Diem", 
-      img: "/images/games/Carp_diem.png", 
-      link: "/game/carp-diem",
-      players: 218,
-      categories: ["slots"],
-      isHot: false,
-      winRate: "97.1%",
-    },
-    { 
-      name: "Fire Portal", 
-      img: "/images/games/fire_portal.png", 
-      link: "/game/fire-portal",
-      players: 289,
-      categories: ["instant"],
-      isHot: false,
-      winRate: "96.9%",
-    },
-    { 
-      name: "Revenge of Loki", 
-      img: "/images/games/revenge_of_loki.png", 
-      link: "/game/revenge-of-loki",
-      players: 176,
-      categories: ["slots"],
-      isHot: false,
-      winRate: "97.4%",
-    },
-    { 
-      name: "Sugar Rush", 
-      img: "/images/games/sugar_rush.png", 
-      link: "/game/sugar-rush",
-      players: 325,
-      categories: ["slots", "jackpot"],
-      isHot: false,
-      winRate: "96.2%",
-    },
-    { 
-      name: "Crash", 
-      img: "/images/games/crash.png", 
-      link: "/game/crash",
-      players: 712,
-      categories: ["instant", "featured"],
-      isHot: true,
-      winRate: "97.8%",
-    },
-    { 
-      name: "Fire in the Hole", 
-      img: "/images/games/fire_in_the_hole.png", 
-      link: "/game/fire-in-the-hole",
-      players: 198,
-      categories: ["slots"],
-      isHot: false,
-      winRate: "96.7%",
-    },
-    { 
-      name: "Dices", 
-      img: "/images/games/dices.png", 
-      link: "/game/dices",
-      players: 435,
-      categories: ["table", "instant"],
-      isHot: false,
-      winRate: "98.5%",
-    },
   ];
   
+  // Only include filters for categories that exist in our games
   const filters = [
     { id: "all", label: "All Games" },
     { id: "featured", label: "Featured" },
     { id: "table", label: "Table Games" },
-    { id: "slots", label: "Slots" },
-    { id: "card", label: "Card Games" },
     { id: "instant", label: "Instant Win" },
-    { id: "jackpot", label: "Jackpot" },
   ];
   
   // Filter games when active filter changes
