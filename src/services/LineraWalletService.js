@@ -206,7 +206,7 @@ class LineraWalletService {
             console.log('✅ Wallet connected:', this.userOwner);
             
             // Notify listeners of connection
-            this.notifyListeners('connected', {
+            this._notifyListeners('connected', {
               owner: this.userOwner,
               address: this.userAddress,
               chain: this.connectedChain,

@@ -16,51 +16,13 @@ export default function LineraConnectButton() {
   } = useLineraWallet();
   
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showConnectModal, setShowConnectModal] = useState(false);
   const [isFaucetLoading, setIsFaucetLoading] = useState(false);
-  const [connectError, setConnectError] = useState(null);
-  const [isConnectingLocal, setIsConnectingLocal] = useState(false);
 
-  const handleOpenModal = () => {
-    setConnectError(null);
-    setShowConnectModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowConnectModal(false);
-    setConnectError(null);
-  };
-
-  const handleConnectDesktop = async () => {
-    setConnectError(null);
-    setIsConnectingLocal(true);
+  const handleConnect = async () => {
     try {
-      // Check if MetaMask is available
-      if (!window.ethereum) {
-        throw new Error('Please install MetaMask extension');
-      }
-      
-      // Request accounts - this should trigger MetaMask popup
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-      
-      if (accounts && accounts.length > 0) {
-        // Now call the connect function to sync state
-        await connect();
-        setShowConnectModal(false);
-      }
+      await connect();
     } catch (err) {
-      console.error("Failed to connect:", err);
-      if (err.code === 4001) {
-        setConnectError('Connection rejected by user');
-      } else if (err.code === -32002) {
-        setConnectError('Please check MetaMask for pending request');
-      } else {
-        setConnectError(err.message || 'Failed to connect');
-      }
-    } finally {
-      setIsConnectingLocal(false);
+      console.error("Failed to connect Linera wallet:", err);
     }
   };
 
@@ -167,137 +129,27 @@ export default function LineraConnectButton() {
   }
 
   return (
-    <>
-      <button
-        onClick={handleOpenModal}
-        disabled={isConnecting || isConnectingLocal}
-        className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-800 disabled:to-indigo-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-      >
-        {(isConnecting || isConnectingLocal) ? (
-          <>
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span>Connecting...</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <span>Connect Wallet</span>
-          </>
-        )}
-      </button>
-
-      {/* Wallet Connection Modal */}
-      {showConnectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={handleCloseModal}
-          />
-          
-          {/* Modal */}
-          <div className="relative bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl">
-            {/* Close button */}
-            <button
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Title */}
-            <h2 className="text-xl font-bold text-white mb-2">Connect Wallet</h2>
-            <p className="text-gray-400 text-sm mb-6">Choose how you want to connect</p>
-
-            {/* Error message */}
-            {connectError && (
-              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
-                {connectError}
-              </div>
-            )}
-
-            {/* Connection options */}
-            <div className="space-y-3">
-              {/* Desktop - MetaMask Extension */}
-              <button
-                onClick={handleConnectDesktop}
-                disabled={isConnectingLocal}
-                className="w-full flex items-center justify-between p-4 bg-gray-800 hover:bg-gray-750 border border-gray-700 rounded-xl transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">🦊</span>
-                  </div>
-                  <div className="text-left">
-                    <div className="text-white font-medium">MetaMask</div>
-                    <div className="text-gray-400 text-xs">Browser Extension</div>
-                  </div>
-                </div>
-                {isConnectingLocal ? (
-                  <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                )}
-              </button>
-
-              {/* Demo Mode */}
-              <button
-                onClick={async () => {
-                  setIsConnectingLocal(true);
-                  try {
-                    await connect();
-                    setShowConnectModal(false);
-                  } catch (err) {
-                    setConnectError(err.message);
-                  } finally {
-                    setIsConnectingLocal(false);
-                  }
-                }}
-                disabled={isConnectingLocal}
-                className="w-full flex items-center justify-between p-4 bg-gray-800 hover:bg-gray-750 border border-gray-700 rounded-xl transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">🎮</span>
-                  </div>
-                  <div className="text-left">
-                    <div className="text-white font-medium">Demo Mode</div>
-                    <div className="text-gray-400 text-xs">Try with test tokens</div>
-                  </div>
-                </div>
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Help text */}
-            <p className="mt-6 text-center text-gray-500 text-xs">
-              Don't have MetaMask?{' '}
-              <a 
-                href="https://metamask.io/download/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-purple-400 hover:text-purple-300"
-              >
-                Download here
-              </a>
-            </p>
-          </div>
-        </div>
+    <button
+      onClick={handleConnect}
+      disabled={isConnecting}
+      className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-800 disabled:to-indigo-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+    >
+      {isConnecting ? (
+        <>
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span>Connecting...</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span>Connect Wallet</span>
+        </>
       )}
-    </>
+    </button>
   );
 }
