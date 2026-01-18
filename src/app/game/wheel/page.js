@@ -138,7 +138,7 @@ export default function Home() {
             })
           });
           
-          const pushResult = await pushResponse.json();
+          const pushResult = await lineraResponse.json();
           console.log('🔗 Push Chain logging result (Wheel):', pushResult);
           console.log('🔗 Push Chain TX Hash:', pushResult.transactionHash);
           console.log('🔗 Push Chain Explorer URL:', pushResult.pushChainExplorerUrl);
@@ -155,11 +155,11 @@ export default function Home() {
             betAmount: targetHistoryItem.betAmount || 0,
             payout: targetHistoryItem.payout || 0,
             entropyProof: {
-              requestId: entropyResult.entropyProof?.requestId,
-              sequenceNumber: entropyResult.entropyProof?.sequenceNumber,
-              randomValue: entropyResult.randomValue,
-              transactionHash: entropyResult.entropyProof?.transactionHash,
-              timestamp: entropyResult.entropyProof?.timestamp
+              requestId: lineraResult.proof?.requestId,
+              sequenceNumber: lineraResult.proof?.sequenceNumber,
+              randomValue: lineraResult.gameId,
+              transactionHash: lineraResult.proof?.commitHash,
+              timestamp: lineraResult.proof?.timestamp
             }
           };
 
@@ -205,15 +205,15 @@ export default function Home() {
                 ? {
                     ...item,
                     entropyProof: {
-                      requestId: entropyResult.entropyProof?.requestId,
-                      sequenceNumber: entropyResult.entropyProof?.sequenceNumber,
-                      randomValue: entropyResult.randomValue,
-                      randomNumber: entropyResult.randomValue,
-                      transactionHash: entropyResult.entropyProof?.transactionHash,
-                      monadExplorerUrl: entropyResult.entropyProof?.monadExplorerUrl,
-                      explorerUrl: entropyResult.entropyProof?.explorerUrl,
-                      timestamp: entropyResult.entropyProof?.timestamp,
-                      source: 'Pyth Entropy',
+                      requestId: lineraResult.proof?.requestId || lineraResult.gameId,
+                      sequenceNumber: lineraResult.proof?.sequenceNumber,
+                      randomValue: lineraResult.gameId,
+                      randomNumber: lineraResult.gameId,
+                      transactionHash: lineraResult.proof?.commitHash,
+                      monadExplorerUrl: null,
+                      explorerUrl: null,
+                      timestamp: lineraResult.proof?.timestamp,
+                      source: 'Linera Proof',
                       pushChainTxHash: pushResult.success ? pushResult.transactionHash : null,
                       pushChainExplorerUrl: pushResult.success ? pushResult.pushChainExplorerUrl : null,
                       solanaTxSignature: solanaLogResult.success ? solanaLogResult.transactionSignature : null,
@@ -240,15 +240,15 @@ export default function Home() {
                 ? {
                     ...item,
                     entropyProof: {
-                      requestId: entropyResult.entropyProof?.requestId,
-                      sequenceNumber: entropyResult.entropyProof?.sequenceNumber,
-                      randomValue: entropyResult.randomValue,
-                      randomNumber: entropyResult.randomValue,
-                      transactionHash: entropyResult.entropyProof?.transactionHash,
-                      monadExplorerUrl: entropyResult.entropyProof?.monadExplorerUrl,
-                      explorerUrl: entropyResult.entropyProof?.explorerUrl,
-                      timestamp: entropyResult.entropyProof?.timestamp,
-                      source: 'Pyth Entropy'
+                      requestId: lineraResult.proof?.requestId || lineraResult.gameId,
+                      sequenceNumber: lineraResult.proof?.sequenceNumber,
+                      randomValue: lineraResult.gameId,
+                      randomNumber: lineraResult.gameId,
+                      transactionHash: lineraResult.proof?.commitHash,
+                      monadExplorerUrl: null,
+                      explorerUrl: null,
+                      timestamp: lineraResult.proof?.timestamp,
+                      source: 'Linera Proof'
                     }
                   }
                 : item
@@ -265,9 +265,9 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sessionId: entropyResult.entropyProof?.requestId || `wheel_${Date.now()}`,
+            sessionId: lineraResult.gameId || `wheel_${Date.now()}`,
             gameType: 'WHEEL',
-            channelId: entropyResult.entropyProof?.requestId || 'entropy_channel',
+            channelId: lineraResult.gameId || 'linera_channel',
             valueMon: 0
           })
         })
