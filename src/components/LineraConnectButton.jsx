@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLineraWallet } from '@/hooks/useLineraWallet';
+import { usePushWalletContext, PushUI, PushUniversalAccountButton } from '@pushchain/ui-kit';
 
 export default function LineraConnectButton() {
   const { 
-    isConnected, 
+    isConnected: lineraConnected, 
     isConnecting, 
     address, 
     balance, 
@@ -15,16 +16,21 @@ export default function LineraConnectButton() {
     error 
   } = useLineraWallet();
   
+  // Also use Push wallet for connection modal
+  const { connectionStatus } = usePushWalletContext();
+  const isPushConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
+  const isConnected = lineraConnected || isPushConnected;
+  
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFaucetLoading, setIsFaucetLoading] = useState(false);
 
-  const handleConnect = async () => {
-    try {
-      await connect();
-    } catch (err) {
-      console.error("Failed to connect Linera wallet:", err);
+  // Sync Linera wallet when Push wallet connects
+  useEffect(() => {
+    if (isPushConnected && !lineraConnected) {
+      // Trigger Linera connection when Push wallet connects
+      connect().catch(err => console.log('Linera sync:', err));
     }
-  };
+  }, [isPushConnected, lineraConnected, connect]);
 
   const handleDisconnect = async () => {
     try {
@@ -128,28 +134,10 @@ export default function LineraConnectButton() {
     );
   }
 
+  // When not connected, use Push Universal Account Button which has proper Desktop/Mobile modal
   return (
-    <button
-      onClick={handleConnect}
-      disabled={isConnecting}
-      className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:from-purple-800 disabled:to-indigo-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-    >
-      {isConnecting ? (
-        <>
-          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <span>Connecting...</span>
-        </>
-      ) : (
-        <>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          <span>Connect Wallet</span>
-        </>
-      )}
-    </button>
+    <div className="linera-connect-button">
+      <PushUniversalAccountButton />
+    </div>
   );
 }
