@@ -41,10 +41,12 @@ export function WalletStatusProvider({ children }) {
         chain: { id: 'linera_testnet', name: 'Linera Conway Testnet' },
       });
       
-      // Set initial demo balance if not already set
+      // Set initial demo balance ONLY on first time (not after withdrawal)
       const savedBalance = localStorage.getItem('userBalance');
-      if (!savedBalance || parseFloat(savedBalance) === 0) {
+      const hasInitializedDemo = localStorage.getItem('demoBalanceInitialized');
+      if (!savedBalance && !hasInitializedDemo) {
         localStorage.setItem('userBalance', '1000');
+        localStorage.setItem('demoBalanceInitialized', 'true');
         console.log('🎮 DEV MODE: Set initial demo balance to 1000 PC');
       }
     }
