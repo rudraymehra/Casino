@@ -119,11 +119,10 @@ export default function GameControls({ onBet, onRowChange, onRiskLevelChange, on
       alert("Please connect your wallet and get some tokens to play!");
       return;
     }
-    
+
     const betValue = parseFloat(betAmount);
-    const currentBalance = parseFloat(userBalance);
-    
-    console.log('handleBet called with betValue:', betValue, 'currentBalance (ETH):', currentBalance);
+
+    console.log('handleBet called with betValue:', betValue, 'currentBalance (PC):', currentBalance);
     
     if (betValue < 0.001) {
       alert("Minimum bet amount is 0.001 PC");
