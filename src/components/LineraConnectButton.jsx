@@ -24,24 +24,29 @@ export default function LineraConnectButton() {
   const { userBalance } = useSelector((state) => state.balance);
   const [displayBalance, setDisplayBalance] = useState(0);
 
-  // Check localStorage for persisted demo connection state - initialize immediately
-  const checkPersistedConnection = () => {
+  // Track if we're on the client (for SSR compatibility)
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Check localStorage directly - only on client side
+  const checkPersistedConnection = useCallback(() => {
     if (typeof window === 'undefined') return false;
     const demoState = localStorage.getItem('demo-wallet-state');
     const demoOwner = localStorage.getItem('demo-wallet-owner');
     const savedBalance = localStorage.getItem('userBalance');
     return demoState === 'connected' && demoOwner && savedBalance && parseFloat(savedBalance) > 0;
-  };
+  }, []);
 
-  const [persistedConnection, setPersistedConnection] = useState(checkPersistedConnection);
-
-  // Update persisted connection state when dependencies change
-  useEffect(() => {
-    setPersistedConnection(checkPersistedConnection());
-  }, [hookIsConnected, userBalance]);
-
-  // Consider connected if hook says so OR if we have persisted state
-  const isConnected = hookIsConnected || persistedConnection;
+  // Consider connected if:
+  // 1. Hook says connected, OR
+  // 2. We're on client AND localStorage has persisted connection, OR
+  // 3. Redux has balance > 0 (user was connected)
+  const hasBalance = parseFloat(userBalance || '0') > 0;
+  const persistedConnection = isClient && checkPersistedConnection();
+  const isConnected = hookIsConnected || persistedConnection || hasBalance;
 
   // Sync display balance with game balance (PC balance)
   useEffect(() => {
@@ -120,8 +125,7 @@ export default function LineraConnectButton() {
   const handleDisconnect = useCallback(async () => {
     try {
       await disconnect();
-      // Also clear persisted state
-      setPersistedConnection(false);
+      // Clear display balance
       setDisplayBalance(0);
       setShowDropdown(false);
     } catch (err) {
