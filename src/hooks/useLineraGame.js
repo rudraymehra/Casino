@@ -29,7 +29,7 @@ export function useLineraGame() {
     const init = async () => {
       await lineraChainService.initialize();
       
-      if (lineraChainService.isConnected()) {
+      if (lineraChainService.checkConnection()) {
         setIsConnected(true);
         setBalance(lineraChainService.getBalance());
         setOwner(lineraChainService.owner);

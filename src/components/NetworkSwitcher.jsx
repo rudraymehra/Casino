@@ -1,37 +1,30 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
-// Push Universal Wallet handles network switching automatically
+import { lineraWalletService } from '@/services/LineraWalletService';
 
 const NetworkSwitcher = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
+  const [isConnected, setIsConnected] = useState(false);
   const [isWrongNetwork, setIsWrongNetwork] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
 
   useEffect(() => {
-    // Push Universal Wallet is always on the correct network
-    if (isConnected) {
-      setIsWrongNetwork(false);
-    }
-  }, [isConnected]);
+    // Check initial state
+    setIsConnected(lineraWalletService.isConnected());
 
-  const handleSwitchNetwork = async () => {
-    if (!isConnected) return;
+    // Listen for wallet events
+    const unsubscribe = lineraWalletService.addListener((event) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setIsWrongNetwork(false); // Linera wallet is always on correct network
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+      }
+    });
 
-    setIsSwitching(true);
-    try {
-      // Push Universal Wallet handles network switching automatically
-      console.log('Push Universal Wallet is already on the correct network');
-    } catch (error) {
-      console.error('Network switch error:', error);
-    } finally {
-      setIsSwitching(false);
-    }
-  };
+    return () => unsubscribe();
+  }, []);
 
+  // Linera wallet is always on the correct network
   if (!isConnected || !isWrongNetwork) {
     return null;
   }
@@ -42,15 +35,8 @@ const NetworkSwitcher = () => {
         <div className="flex items-center space-x-4">
           <div className="flex-1">
             <p className="font-medium">Wrong Network</p>
-            <p className="text-sm text-red-200">Please switch to Push Chain Donut Testnet to use this app</p>
+            <p className="text-sm text-red-200">Please connect to Linera Conway Testnet</p>
           </div>
-          <button
-            onClick={handleSwitchNetwork}
-            disabled={isSwitching}
-            className="bg-white/20 hover:bg-white/30 disabled:opacity-50 px-4 py-2 rounded-md text-sm font-medium transition-colors"
-          >
-            {isSwitching ? 'Switching...' : 'Switch Network'}
-          </button>
         </div>
       </div>
     </div>

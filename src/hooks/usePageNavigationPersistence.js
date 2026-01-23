@@ -1,87 +1,70 @@
 "use client";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
-import { memoryWalletStorage as walletStorage } from '@/utils/memoryWalletStorage';
+import { lineraWalletService } from '@/services/LineraWalletService';
+import { hasStoredWallet } from '@/utils/lineraWalletCrypto';
 
 /**
  * Page Navigation Persistence Hook
- * Handles wallet reconnection on page navigation
+ * Handles wallet state on page navigation for Linera Wallet
  */
 export const usePageNavigationPersistence = () => {
   const pathname = usePathname();
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
 
   useEffect(() => {
     // Only run on client side
     if (typeof window === 'undefined') return;
 
-    console.log('🔄 Page navigation detected:', pathname);
-    console.log('🔍 Current wallet state:', { isConnected, address });
+    console.log('Page navigation detected:', pathname);
+
+    // Check initial state
+    const connected = lineraWalletService.isConnected();
+    const addr = lineraWalletService.userAddress;
+    setIsConnected(connected);
+    setAddress(addr);
+
+    console.log('Current wallet state:', { isConnected: connected, address: addr });
 
     // Check if we need to reconnect after page navigation
-    const checkNavigationReconnection = async () => {
-      const { wasConnected, connector: savedConnector } = walletStorage.getConnectionState();
-      
-      console.log('🌐 Navigation wallet check:', {
+    const checkNavigationReconnection = () => {
+      const needsUnlock = hasStoredWallet() && !lineraWalletService.isConnected();
+
+      console.log('Navigation wallet check:', {
         pathname,
-        wasConnected,
-        savedConnector,
-        isConnected,
-        address,
-        connectorsCount: connectors.length
+        hasStoredWallet: hasStoredWallet(),
+        needsUnlock,
+        isConnected: connected,
+        address: addr
       });
 
-      // If wallet was connected but is not currently connected, try to reconnect
-      if (wasConnected && !isConnected && connectors.length > 0) {
-        console.log('🔄 Page navigation: Attempting reconnection...');
-        
-        // Find the appropriate connector
-        let targetConnector = null;
-        
-        if (savedConnector) {
-          targetConnector = connectors.find(c => 
-            c.id === savedConnector || 
-            c.name.toLowerCase().includes(savedConnector.toLowerCase())
-          );
-        }
-        
-        // Fallback to MetaMask or injected
-        if (!targetConnector) {
-          targetConnector = connectors.find(c => 
-            c.id === 'metaMask' || 
-            c.name.toLowerCase().includes('metamask') ||
-            c.id === 'injected'
-          );
-        }
-        
-        // Last resort: use first available connector
-        if (!targetConnector && connectors.length > 0) {
-          targetConnector = connectors[0];
-        }
-
-        if (targetConnector) {
-          console.log('🔗 Page navigation reconnecting with connector:', targetConnector.name);
-          try {
-            await connect({ connector: targetConnector });
-            console.log('✅ Page navigation reconnection successful');
-          } catch (error) {
-            console.error('❌ Page navigation reconnection failed:', error);
-          }
-        } else {
-          console.log('❌ No suitable connector found for page navigation reconnection');
-        }
+      // If wallet was connected but is not currently connected
+      if (needsUnlock) {
+        console.log('Page navigation: Stored wallet needs unlock');
+        // The wallet will prompt for password when user clicks connect
       }
     };
 
     // Add a small delay to ensure the page has fully loaded
     const timer = setTimeout(checkNavigationReconnection, 500);
-    
-    return () => clearTimeout(timer);
-  }, [pathname, isConnected, address, connect, connectors]);
+
+    // Listen for wallet events
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+      }
+    });
+
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [pathname]);
 
   return {
     isConnected,

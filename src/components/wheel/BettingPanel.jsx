@@ -81,35 +81,38 @@ const BettingPanel = ({
         </div>
       </div>
 
-      {/* Pyth Entropy Status */}
-      <div className="mb-4 p-3 bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-800/30">
+      {/* Linera Network Status */}
+      <div className="mb-4 p-3 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 rounded-lg border border-blue-800/30">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Shield size={16} className="text-purple-300" />
-            <span className="text-sm font-medium text-purple-300">Pyth Entropy</span>
+            <Shield size={16} className="text-blue-300" />
+            <span className="text-sm font-medium text-blue-300">Linera Network</span>
           </div>
           {isConnected && (
-            <div className={`w-2 h-2 rounded-full ${pythReady ? 'bg-green-400' : 'bg-red-400'}`}></div>
+            <div className={`w-2 h-2 rounded-full ${pythReady ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
           )}
         </div>
-        
+
         {!isConnected ? (
           <div className="text-center py-2">
-            <div className="text-sm text-gray-400 mb-2">Connect wallet to view VRF proofs</div>
+            <div className="text-sm text-gray-400 mb-2">Connect Linera wallet to play</div>
             <button
               onClick={() => {
-                // Trigger wallet connection
-                if (window.ethereum) {
-                  window.ethereum.request({ method: 'eth_requestAccounts' });
+                // Trigger Linera wallet connection
+                if (window.linera) {
+                  window.linera.request({ type: 'CONNECT_WALLET' });
+                } else {
+                  alert('Please install the Croissant wallet extension for Linera');
                 }
               }}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
             >
-              Connect Wallet
+              Connect Linera Wallet
             </button>
           </div>
         ) : (
           <div className="flex items-center justify-between">
+            <span className="text-xs text-green-400">Connected to Conway Testnet</span>
           </div>
         )}
       </div>

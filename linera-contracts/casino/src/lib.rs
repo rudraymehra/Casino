@@ -21,6 +21,10 @@ pub enum GameType {
 /// Operations that can be performed on the casino contract
 #[derive(Debug, Serialize, Deserialize)]
 pub enum CasinoOperation {
+    /// Deposit funds into the casino
+    Deposit { amount: Amount },
+    /// Withdraw funds from the casino
+    Withdraw { amount: Amount },
     /// Place a bet with a commit hash for the reveal phase
     PlaceBet {
         game_type: GameType,
@@ -39,6 +43,10 @@ pub enum CasinoOperation {
 /// Response from casino operations
 #[derive(Debug, Serialize, Deserialize)]
 pub enum CasinoResponse {
+    /// Deposit successful
+    DepositSuccess { new_balance: Amount },
+    /// Withdrawal successful
+    WithdrawSuccess { new_balance: Amount },
     /// Game was placed successfully
     GamePlaced { game_id: u64 },
     /// Game completed with outcome

@@ -1,26 +1,27 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
-import { getSmartAccountInfo, checkSmartAccountSupport } from '@/utils/smartAccountUtils';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
+/**
+ * Linera Wallet Account Hook
+ * Provides wallet account info and capabilities
+ */
 export const useSmartAccount = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
-  
-  const [smartAccountInfo, setSmartAccountInfo] = useState(null);
-  const [isSmartAccount, setIsSmartAccount] = useState(false);
+  const [accountInfo, setAccountInfo] = useState(null);
+  const [isLineraAccount, setIsLineraAccount] = useState(false);
   const [capabilities, setCapabilities] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const loadSmartAccountInfo = async () => {
-      if (!isConnected || !address || !pushChainClient) {
-        setSmartAccountInfo(null);
-        setIsSmartAccount(false);
+    const loadAccountInfo = () => {
+      const isConnected = lineraWalletService.isConnected();
+      const address = lineraWalletService.userAddress;
+
+      if (!isConnected || !address) {
+        setAccountInfo(null);
+        setIsLineraAccount(false);
         setCapabilities(null);
         return;
       }
@@ -29,97 +30,84 @@ export const useSmartAccount = () => {
       setError(null);
 
       try {
-        // Push Chain Universal Wallet provides smart account functionality by default
-        const accountInfo = {
-          isSmartAccount: true,
+        // Linera wallet provides account functionality
+        const info = {
+          isLineraAccount: true,
           address: address,
+          owner: lineraWalletService.userOwner,
+          chainId: lineraWalletService.connectedChain,
           features: {
-            batchTransactions: true,
-            gaslessTransactions: true,
-            socialLogin: true
+            nativeToken: true,
+            multiChain: true,
+            faucet: true
           }
         };
-        setSmartAccountInfo(accountInfo);
-        setIsSmartAccount(true);
+        setAccountInfo(info);
+        setIsLineraAccount(true);
 
-        // Push Chain capabilities
+        // Linera capabilities
         const caps = {
           isSupported: true,
           capabilities: {
-            batchTransactions: true,
-            gaslessTransactions: true,
-            socialLogin: true
+            nativeToken: true,
+            multiChain: true,
+            faucet: true
           },
-          provider: 'Push Universal Wallet'
+          provider: 'Linera Wallet'
         };
         setCapabilities(caps);
 
-        console.log('Smart Account Info:', accountInfo);
-        console.log('Smart Account Capabilities:', caps);
+        console.log('Linera Account Info:', info);
       } catch (err) {
-        console.error('Error loading Smart Account info:', err);
+        console.error('Error loading account info:', err);
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadSmartAccountInfo();
-  }, [isConnected, address, pushChainClient]);
+    loadAccountInfo();
 
-  const enableSmartAccountFeatures = async () => {
-    if (!pushChainClient) return false;
+    // Listen for wallet events
+    const unsubscribe = lineraWalletService.addListener((event) => {
+      if (event === 'connected' || event === 'disconnected') {
+        loadAccountInfo();
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const requestFaucet = async () => {
+    if (!lineraWalletService.isConnected()) {
+      throw new Error('Wallet not connected');
+    }
 
     try {
       setIsLoading(true);
-      
-      // Push Universal Wallet has smart account features enabled by default
-      console.log('Push Universal Wallet smart account features are already enabled');
-      
-      return true;
+      return await lineraWalletService.requestFaucet();
     } catch (err) {
-      console.error('Error with Push Universal Wallet features:', err);
+      console.error('Faucet error:', err);
       setError(err.message);
-      return false;
+      throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const batchTransactions = async (transactions) => {
-    if (!pushChainClient || !isSmartAccount) {
-      throw new Error('Push Universal Wallet not available for batch transactions');
-    }
-
-    try {
-      // Push Chain supports batch transactions natively
-      const results = [];
-      for (const tx of transactions) {
-        const result = await pushChainClient.universal.sendTransaction(tx);
-        results.push(result);
-      }
-      
-      return results;
-    } catch (err) {
-      console.error('Error executing batch transactions:', err);
-      throw err;
-    }
-  };
-
   return {
     // State
-    smartAccountInfo,
-    isSmartAccount,
+    smartAccountInfo: accountInfo,
+    isSmartAccount: isLineraAccount,
     capabilities,
     isLoading,
     error,
-    
+
     // Actions
-    enableSmartAccountFeatures,
-    batchTransactions,
-    
+    requestFaucet,
+
     // Computed values
     hasSmartAccountSupport: !!capabilities?.isSupported,
-    supportedFeatures: smartAccountInfo?.features || {},
+    supportedFeatures: accountInfo?.features || {},
   };
 };

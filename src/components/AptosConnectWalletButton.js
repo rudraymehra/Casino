@@ -1,23 +1,46 @@
 "use client";
-import React from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
-import { MetaMaskConnector } from '@wagmi/connectors/metaMask';
+import React, { useState, useEffect } from 'react';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
-export default function EthereumConnectWalletButton() {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+export default function AptosConnectWalletButton() {
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
+
+  useEffect(() => {
+    // Check initial state
+    setIsConnected(lineraWalletService.isConnected());
+    setAddress(lineraWalletService.userAddress);
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const handleConnect = async () => {
-    const metaMaskConnector = connectors.find(connector => connector.id === 'metaMask');
-    if (metaMaskConnector) {
-      await connect({ connector: metaMaskConnector });
+    try {
+      console.log('🔗 Attempting to connect Linera wallet...');
+      await lineraWalletService.connect();
+      console.log('✅ Wallet connected successfully');
+    } catch (error) {
+      console.error('❌ Connection error:', error);
+      alert(`Connection failed: ${error.message}`);
     }
   };
 
-  const handleDisconnect = () => {
-    disconnect();
+  const handleDisconnect = async () => {
+    try {
+      await lineraWalletService.disconnect();
+    } catch (error) {
+      console.error('Disconnect error:', error);
+    }
   };
 
   return (
@@ -37,11 +60,11 @@ export default function EthereumConnectWalletButton() {
       ) : (
         <button
           onClick={handleConnect}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all transform hover:scale-105"
+          className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-medium rounded-lg transition-all transform hover:scale-105"
         >
-          Connect MetaMask
+          Connect Linera
         </button>
       )}
     </div>
   );
-} 
+}

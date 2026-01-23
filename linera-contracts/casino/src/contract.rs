@@ -49,6 +49,59 @@ impl Contract for CasinoContract {
 
     async fn execute_operation(&mut self, operation: CasinoOperation) -> CasinoResponse {
         match operation {
+            CasinoOperation::Deposit { amount } => {
+                let player = self.runtime.authenticated_signer()
+                    .expect("Deposit must be from authenticated user");
+
+                let deposit_attos = amount.to_attos();
+
+                // Get current player balance
+                let current_balance = self.state.player_balances.get(&player)
+                    .await
+                    .expect("Failed to read balance")
+                    .unwrap_or(0);
+
+                // Update player balance
+                let new_balance = current_balance.saturating_add(deposit_attos);
+                self.state.player_balances.insert(&player, new_balance)
+                    .expect("Failed to update balance");
+
+                // Update total funds
+                let current_funds = *self.state.total_funds.get();
+                self.state.total_funds.set(current_funds.saturating_add(deposit_attos as u64));
+
+                CasinoResponse::DepositSuccess {
+                    new_balance: Amount::from_attos(new_balance)
+                }
+            }
+            CasinoOperation::Withdraw { amount } => {
+                let player = self.runtime.authenticated_signer()
+                    .expect("Withdraw must be from authenticated user");
+
+                let withdraw_attos = amount.to_attos();
+
+                // Get current player balance
+                let current_balance = self.state.player_balances.get(&player)
+                    .await
+                    .expect("Failed to read balance")
+                    .unwrap_or(0);
+
+                // Check sufficient balance
+                assert!(current_balance >= withdraw_attos, "Insufficient balance");
+
+                // Update player balance
+                let new_balance = current_balance.saturating_sub(withdraw_attos);
+                self.state.player_balances.insert(&player, new_balance)
+                    .expect("Failed to update balance");
+
+                // Update total funds
+                let current_funds = *self.state.total_funds.get();
+                self.state.total_funds.set(current_funds.saturating_sub(withdraw_attos as u64));
+
+                CasinoResponse::WithdrawSuccess {
+                    new_balance: Amount::from_attos(new_balance)
+                }
+            }
             CasinoOperation::PlaceBet {
                 game_type,
                 bet_amount,
@@ -59,6 +112,20 @@ impl Contract for CasinoContract {
                 let player = self.runtime.authenticated_signer()
                     .expect("Bet must be placed by authenticated user");
                 let timestamp = self.runtime.system_time();
+
+                let bet_attos = bet_amount.to_attos();
+
+                // Check player has sufficient balance
+                let current_balance = self.state.player_balances.get(&player)
+                    .await
+                    .expect("Failed to read balance")
+                    .unwrap_or(0);
+                assert!(current_balance >= bet_attos, "Insufficient balance to place bet");
+
+                // Deduct bet from player balance
+                let new_balance = current_balance.saturating_sub(bet_attos);
+                self.state.player_balances.insert(&player, new_balance)
+                    .expect("Failed to update balance");
 
                 let pending_game = PendingGame {
                     player,
@@ -72,11 +139,6 @@ impl Contract for CasinoContract {
                 self.state.pending_games.insert(&game_id, pending_game)
                     .expect("Failed to insert pending game");
                 self.state.next_game_id.set(game_id + 1);
-                
-                // Add bet amount to total funds (convert Amount to u64 via attos)
-                let bet_attos = bet_amount.to_attos() as u64;
-                let current_funds = *self.state.total_funds.get();
-                self.state.total_funds.set(current_funds.saturating_add(bet_attos));
 
                 CasinoResponse::GamePlaced { game_id }
             }
@@ -86,7 +148,7 @@ impl Contract for CasinoContract {
             } => {
                 let player = self.runtime.authenticated_signer()
                     .expect("Reveal must be from authenticated user");
-                
+
                 let pending_game = self.state.pending_games.get(&game_id)
                     .await
                     .expect("Failed to read pending game")
@@ -109,15 +171,19 @@ impl Contract for CasinoContract {
                     GameType::Wheel => wheel::calculate_outcome(&reveal_value, &pending_game.game_params),
                 };
 
-                // Calculate payout
+                // Calculate payout (multiplier is percentage, e.g., 200 = 2x)
                 let bet_attos = pending_game.bet_amount.to_attos();
                 let payout_attos = bet_attos * multiplier as u128 / 100;
                 let payout = Amount::from_attos(payout_attos);
 
-                // Update total funds
-                let current_funds = *self.state.total_funds.get();
-                let payout_u64 = payout_attos as u64;
-                self.state.total_funds.set(current_funds.saturating_sub(payout_u64));
+                // Credit payout to player balance
+                let current_balance = self.state.player_balances.get(&player)
+                    .await
+                    .expect("Failed to read balance")
+                    .unwrap_or(0);
+                let new_balance = current_balance.saturating_add(payout_attos);
+                self.state.player_balances.insert(&player, new_balance)
+                    .expect("Failed to update balance");
 
                 // Record game outcome
                 let game_outcome = GameOutcome {

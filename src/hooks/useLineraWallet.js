@@ -1,44 +1,56 @@
 /**
- * Linera Wallet React Hooks
- * Provides wallet connection, balance tracking, and game operations
- * 
- * Now supports both:
- * 1. LineraWalletService (MetaMask/CheCko bridge)
- * 2. LineraChainService (direct @linera/client SDK)
+ * Linera Wallet React Hooks - Production Implementation
+ *
+ * Integrates with Croissant wallet extension (window.linera)
+ * Reference: https://github.com/Nirajsah/croissant
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { lineraWalletService, GAME_TYPES, LINERA_CONFIG } from '../services/LineraWalletService';
-import { lineraChainService } from '../services/LineraChainService';
+import { lineraChainService, LINERA_CONFIG, GameType } from '../services/LineraChainService';
 
 /**
  * Main wallet connection hook
  */
 export function useLineraWallet() {
+  const [isWalletInstalled, setIsWalletInstalled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [owner, setOwner] = useState(null);
-  const [address, setAddress] = useState(null);
   const [chainId, setChainId] = useState(null);
   const [balance, setBalance] = useState(0);
   const [error, setError] = useState(null);
   const listenerRef = useRef(null);
 
+  // Check wallet installation and existing connection on mount
   useEffect(() => {
+    const init = async () => {
+      const installed = await lineraChainService.initialize();
+      setIsWalletInstalled(installed);
+
+      if (installed && lineraChainService.checkConnection()) {
+        const info = lineraChainService.getConnectionInfo();
+        setIsConnected(true);
+        setOwner(info.owner);
+        setChainId(info.chainId);
+        setBalance(info.balance);
+      }
+    };
+
+    init();
+
+    // Listen for wallet events
     const handleEvent = (event, data) => {
       switch (event) {
         case 'connected':
           setIsConnected(true);
           setOwner(data.owner);
-          setAddress(data.address);
-          setChainId(data.chain);
+          setChainId(data.chainId);
           setBalance(data.balance || 0);
           setError(null);
           break;
         case 'disconnected':
           setIsConnected(false);
           setOwner(null);
-          setAddress(null);
           setChainId(null);
           setBalance(0);
           break;
@@ -51,16 +63,7 @@ export function useLineraWallet() {
       }
     };
 
-    listenerRef.current = lineraWalletService.addListener(handleEvent);
-    
-    // Check if already connected
-    if (lineraWalletService.isConnected()) {
-      setIsConnected(true);
-      setOwner(lineraWalletService.userOwner);
-      setAddress(lineraWalletService.userAddress);
-      setChainId(lineraWalletService.connectedChain);
-      setBalance(lineraWalletService.getBalance());
-    }
+    listenerRef.current = lineraChainService.addListener(handleEvent);
 
     return () => {
       if (listenerRef.current) {
@@ -69,16 +72,21 @@ export function useLineraWallet() {
     };
   }, []);
 
+  /**
+   * Connect wallet - requests user approval via extension popup
+   */
   const connect = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
+
     try {
-      const result = await lineraWalletService.connect();
+      const result = await lineraChainService.connectWallet();
+
       setIsConnected(true);
       setOwner(result.owner);
-      setAddress(result.ethAddress);
-      setChainId(result.chain);
+      setChainId(result.chainId);
       setBalance(result.balance);
+
       return result;
     } catch (err) {
       setError(err.message);
@@ -88,18 +96,65 @@ export function useLineraWallet() {
     }
   }, []);
 
-  const disconnect = useCallback(async () => {
-    await lineraWalletService.disconnect();
+  /**
+   * Disconnect wallet
+   */
+  const disconnect = useCallback(() => {
+    lineraChainService.disconnect();
     setIsConnected(false);
     setOwner(null);
-    setAddress(null);
     setChainId(null);
     setBalance(0);
   }, []);
 
-  const requestFaucet = useCallback(async () => {
+  /**
+   * Refresh balance from chain
+   */
+  const refreshBalance = useCallback(async () => {
     try {
-      const result = await lineraWalletService.requestFaucet();
+      const newBalance = await lineraChainService.getBalance();
+      setBalance(newBalance);
+      return newBalance;
+    } catch (err) {
+      console.error('Failed to refresh balance:', err);
+      return balance;
+    }
+  }, [balance]);
+
+  /**
+   * Deposit funds into casino
+   */
+  const deposit = useCallback(async (amount) => {
+    try {
+      const result = await lineraChainService.deposit(amount);
+      await refreshBalance();
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [refreshBalance]);
+
+  /**
+   * Withdraw funds from casino
+   */
+  const withdraw = useCallback(async (amount) => {
+    try {
+      const result = await lineraChainService.withdraw(amount);
+      await refreshBalance();
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [refreshBalance]);
+
+  /**
+   * Request faucet tokens (for testing)
+   */
+  const requestFaucet = useCallback(async (amount = 100) => {
+    try {
+      const result = await lineraChainService.requestFaucet(amount);
       setBalance(result.newBalance);
       return result;
     } catch (err) {
@@ -109,16 +164,25 @@ export function useLineraWallet() {
   }, []);
 
   return {
+    // Wallet state
+    isWalletInstalled,
     isConnected,
     isConnecting,
     owner,
-    address,
     chainId,
     balance,
     error,
+
+    // Actions
     connect,
     disconnect,
+    refreshBalance,
+    deposit,
+    withdraw,
     requestFaucet,
+
+    // Helpers
+    walletInstallUrl: lineraChainService.getWalletInstallUrl(),
     config: LINERA_CONFIG,
   };
 }
@@ -132,16 +196,19 @@ export function useLineraGame() {
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState(null);
 
+  /**
+   * Place a bet and play a game
+   */
   const playGame = useCallback(async (gameType, betAmount, gameParams = {}) => {
     setIsPlaying(true);
     setError(null);
     setLastResult(null);
 
     try {
-      console.log(`🎮 Playing ${gameType} with ${betAmount} LINERA...`);
-      
-      const result = await lineraWalletService.placeBet(gameType, betAmount, gameParams);
-      
+      console.log(`Playing ${gameType} with ${betAmount} LINERA...`);
+
+      const result = await lineraChainService.placeBet(gameType, betAmount, gameParams);
+
       setLastResult(result);
       setCurrentGame({
         gameId: result.gameId,
@@ -162,6 +229,9 @@ export function useLineraGame() {
     }
   }, []);
 
+  /**
+   * Reset game state
+   */
   const resetGame = useCallback(() => {
     setCurrentGame(null);
     setLastResult(null);
@@ -175,34 +245,40 @@ export function useLineraGame() {
     error,
     playGame,
     resetGame,
-    GAME_TYPES,
+    GameType,
   };
 }
 
 /**
  * Game history hook
  */
-export function useLineraStats() {
+export function useLineraHistory() {
   const [gameHistory, setGameHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchHistory = useCallback(async () => {
+  /**
+   * Fetch game history from chain
+   */
+  const fetchHistory = useCallback(async (limit = 20) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const history = await lineraWalletService.getGameHistory();
+      const history = await lineraChainService.getGameHistory(limit);
       setGameHistory(history);
+      return history;
     } catch (err) {
       setError(err.message);
+      return [];
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Fetch on mount if connected
   useEffect(() => {
-    if (lineraWalletService.isConnected()) {
+    if (lineraChainService.checkConnection()) {
       fetchHistory();
     }
   }, [fetchHistory]);
@@ -215,4 +291,4 @@ export function useLineraStats() {
   };
 }
 
-export { GAME_TYPES, LINERA_CONFIG };
+export { LINERA_CONFIG, GameType };

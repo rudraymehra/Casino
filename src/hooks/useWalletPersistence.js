@@ -1,85 +1,59 @@
-import { useEffect } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { useEffect, useState } from 'react';
+import { lineraWalletService } from '@/services/LineraWalletService';
+import { hasStoredWallet } from '@/utils/lineraWalletCrypto';
 
 /**
  * Hook to handle wallet connection persistence
- * Automatically reconnects wallet on page refresh/navigation
+ * Automatically manages Linera wallet state on page refresh/navigation
  */
 export const useWalletPersistence = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
 
   useEffect(() => {
-    // Add a small delay to ensure connectors are ready
-    const timer = setTimeout(() => {
-      // Check if wallet was previously connected
-      const wasConnected = localStorage.getItem('wagmi.connected');
-      const lastConnectedConnector = localStorage.getItem('wagmi.connector');
-      
-      console.log('🔍 Wallet persistence check:', { 
-        wasConnected, 
-        lastConnectedConnector, 
-        isConnected, 
-        address,
-        connectorsCount: connectors.length
-      });
+    // Check initial state
+    const checkState = () => {
+      const connected = lineraWalletService.isConnected();
+      setIsConnected(connected);
+      setAddress(lineraWalletService.userAddress);
+    };
 
-      // If wallet was connected but is not currently connected, try to reconnect
-      if (wasConnected === 'true' && !isConnected && connectors.length > 0) {
-        console.log('🔄 Attempting to reconnect wallet...');
-        
-        // Find the last used connector or default to MetaMask
-        const targetConnector = connectors.find(c => 
-          c.name.toLowerCase().includes('metamask') || 
-          c.name.toLowerCase().includes(lastConnectedConnector?.toLowerCase() || '')
-        ) || connectors[0];
-        
-        if (targetConnector) {
-          console.log('🔗 Reconnecting with connector:', targetConnector.name);
-          connect({ connector: targetConnector }).catch(error => {
-            console.error('❌ Reconnection failed:', error);
-          });
-        }
+    // Check after a small delay to ensure service is ready
+    const timer = setTimeout(checkState, 500);
+
+    // Listen for wallet events
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      console.log('Wallet persistence event:', event);
+
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
       }
-    }, 1000); // 1 second delay
+    });
 
-    return () => clearTimeout(timer);
-  }, [isConnected, address, connect, connectors]);
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
 
   // Save connection state when wallet connects
   useEffect(() => {
     if (isConnected && address) {
-      console.log('✅ Wallet connected, saving state');
-      localStorage.setItem('wagmi.connected', 'true');
-      localStorage.setItem('wagmi.address', address);
-      
-      // Also save the connector info for better reconnection
-      const currentConnector = connectors.find(c => c.name.toLowerCase().includes('metamask'));
-      if (currentConnector) {
-        localStorage.setItem('wagmi.connector', currentConnector.name);
-      }
+      console.log('Linera Wallet connected, state saved');
     }
-  }, [isConnected, address, connectors]);
-
-  // Clear connection state when wallet disconnects
-  useEffect(() => {
-    if (!isConnected) {
-      console.log('❌ Wallet disconnected, clearing state');
-      localStorage.removeItem('wagmi.connected');
-      localStorage.removeItem('wagmi.address');
-    }
-  }, [isConnected]);
+  }, [isConnected, address]);
 
   return {
     isConnected,
     address,
+    hasStoredWallet: hasStoredWallet(),
     disconnect: () => {
-      console.log('🔌 Manual disconnect triggered');
-      localStorage.removeItem('wagmi.connected');
-      localStorage.removeItem('wagmi.address');
-      disconnect();
+      console.log('Manual disconnect triggered');
+      lineraWalletService.disconnect();
     }
   };
 };

@@ -8,13 +8,20 @@ import LendingTable from "@/components/LendingTable";
 import Image from "next/image";
 import { FaChartLine, FaHistory, FaInfoCircle, FaExchangeAlt, FaCoins, FaWallet, FaLock, FaUnlock } from "react-icons/fa";
 
-  // Assets for borrowing on Ethereum testnet only
+// Linera Configuration
+const LINERA_CONFIG = {
+  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
+  explorerUrl: 'https://explorer.testnet-conway.linera.net',
+};
+
+// Assets for borrowing on Linera testnet
 const BORROW_ASSETS = {
-  ethereum_testnet: [
+  linera_testnet: [
     {
-      symbol: "PC",
-      name: "Push Chain Coin",
-      iconColor: "#F1324D",
+      symbol: "LINERA",
+      name: "Linera Token",
+      iconColor: "#3B82F6",
       address: null // Native token
     }
   ]
@@ -22,13 +29,13 @@ const BORROW_ASSETS = {
 
 // Mock transaction history
 const MOCK_TRANSACTIONS = [
-  { type: 'deposit', token: 'PC', amount: '120.5', date: new Date(Date.now() - 86400000 * 2), status: 'completed' },
-  { type: 'borrow', token: 'MNT', amount: '0.3', date: new Date(Date.now() - 86400000), status: 'completed' },
-  { type: 'swap', tokenFrom: 'MNT', tokenTo: 'PC', amountFrom: '0.2', amountTo: '98.32', date: new Date(), status: 'completed' }
+  { type: 'deposit', token: 'LINERA', amount: '120.5', date: new Date(Date.now() - 86400000 * 2), status: 'completed' },
+  { type: 'borrow', token: 'LINERA', amount: '0.3', date: new Date(Date.now() - 86400000), status: 'completed' },
+  { type: 'swap', tokenFrom: 'LINERA', tokenTo: 'APTC', amountFrom: '0.2', amountTo: '98.32', date: new Date(), status: 'completed' }
 ];
 
 export default function Bank() {
-  const [chainId, setChainId] = useState('ethereum_testnet'); // Default to Ethereum testnet
+  const [chainId, setChainId] = useState('linera_testnet'); // Default to Linera testnet
   const [assets, setAssets] = useState([]);
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +49,7 @@ export default function Bank() {
     totalLocked: 3200000
   });
   const isDev = process.env.NODE_ENV === 'development';
-  
+
   // Format currency with dollar sign
   const formatCurrency = useCallback((value) => {
     return new Intl.NumberFormat('en-US', {
@@ -52,24 +59,24 @@ export default function Bank() {
       maximumFractionDigits: 2
     }).format(value);
   }, []);
-  
+
   // Format large numbers with commas
   const formatNumber = useCallback((value) => {
     return new Intl.NumberFormat('en-US').format(value);
   }, []);
-  
+
   useEffect(() => {
     setIsClient(true);
-    
+
     // In development mode, use mock data
     if (isDev) {
-      setChainId('ethereum_testnet'); // Ethereum testnet for development
+      setChainId('linera_testnet'); // Linera testnet for development
       setAssets([
         {
-          symbol: "PC",
-          name: "Push Chain Coin",
-          iconColor: "#F1324D",
-          address: "0x...",
+          symbol: "LINERA",
+          name: "Linera Token",
+          iconColor: "#3B82F6",
+          address: "native",
           apr: "12.5%",
           totalDeposited: "$240,000",
           available: "$120,000"
@@ -78,42 +85,33 @@ export default function Bank() {
           symbol: "APTC",
           name: "APT Casino Token",
           iconColor: "#34C759",
-          address: "0x...",
+          address: "app_token",
           apr: "8.2%",
           totalDeposited: "$520,000",
           available: "$320,000"
-        },
-        {
-          symbol: "PC",
-          name: 'PC',
-          iconColor: "#2196F3",
-          address: null,
-          apr: "4.8%",
-          totalDeposited: "$180,000",
-          available: "$95,000"
         }
       ]);
-      
+
       // Set mock transactions
       setTransactions(MOCK_TRANSACTIONS);
-      
+
       setIsLoading(false);
       return;
     }
-    
-    // Load Ethereum testnet data
+
+    // Load Linera testnet data
     const loadChainData = async () => {
       try {
-        // Set to Ethereum testnet
-        setChainId('ethereum_testnet');
-        
-        // Set mock lending market data for Ethereum testnet
+        // Set to Linera testnet
+        setChainId('linera_testnet');
+
+        // Set mock lending market data for Linera testnet
         setAssets([
           {
-            symbol: "PC",
-            name: "Push Chain Coin",
-            iconColor: "#F1324D",
-            address: "0x...",
+            symbol: "LINERA",
+            name: "Linera Token",
+            iconColor: "#3B82F6",
+            address: "native",
             apr: "12.5%",
             totalDeposited: "$240,000",
             available: "$120,000"
@@ -122,115 +120,122 @@ export default function Bank() {
             symbol: "APTC",
             name: "APT Casino Token",
             iconColor: "#34C759",
-            address: "0x...",
+            address: "app_token",
             apr: "8.2%",
             totalDeposited: "$520,000",
             available: "$320,000"
           }
         ]);
-        
+
         // Load transaction history
         setTransactions(MOCK_TRANSACTIONS);
-        
+
         setIsLoading(false);
       } catch (err) {
         console.warn("Failed to load chain data:", err);
         setIsLoading(false);
       }
     };
-    
+
     loadChainData();
   }, [isDev]);
-  
-  // Get appropriate borrow assets for Ethereum testnet
-  const borrowAssets = BORROW_ASSETS.ethereum_testnet;
-  
+
+  // Get appropriate borrow assets for Linera testnet
+  const borrowAssets = BORROW_ASSETS.linera_testnet;
+
   // Animated number component for stats
   const AnimatedNumber = ({ value, prefix = '', suffix = '', duration = 2000 }) => {
     const [displayValue, setDisplayValue] = useState(0);
-    
+
     useEffect(() => {
       let startValue = 0;
       const endValue = parseFloat(value);
       const startTime = Date.now();
-      
+
       const updateValue = () => {
         const now = Date.now();
         const elapsed = now - startTime;
-        
+
         if (elapsed >= duration) {
           setDisplayValue(endValue);
           return;
         }
-        
+
         const progress = elapsed / duration;
         const currentValue = startValue + progress * (endValue - startValue);
         setDisplayValue(currentValue);
         requestAnimationFrame(updateValue);
       };
-      
+
       requestAnimationFrame(updateValue);
-      
+
       return () => {
         startValue = displayValue;
       };
     }, [value, duration]);
-    
+
     return (
       <span>
         {prefix}{typeof displayValue === 'number' ? displayValue.toFixed(2) : displayValue}{suffix}
       </span>
     );
   };
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-sharp-black to-[#150012] text-white">
       <div className="container mx-auto px-4 lg:px-8 pt-32 pb-16">
         {/* Network banner moved inside the container and positioned after the navbar */}
         {showNetworkBanner && (
-          <div className="bg-gradient-to-r from-red-magic/80 to-blue-magic/80 py-2 px-4 text-center relative mb-8 rounded-lg">
+          <div className="bg-gradient-to-r from-blue-600/80 to-cyan-600/80 py-2 px-4 text-center relative mb-8 rounded-lg">
             <p className="text-white text-sm">
-              Connected to Push Chain Donut Testnet. 
-              <button className="underline ml-2">Switch Network</button>
+              Connected to Linera Conway Testnet.
+              <a
+                href={`${LINERA_CONFIG.explorerUrl}/chains/${LINERA_CONFIG.chainId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline ml-2 hover:text-blue-200"
+              >
+                View on Explorer
+              </a>
             </p>
-            <button 
+            <button
               className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white"
               onClick={() => setShowNetworkBanner(false)}
             >
-              ✕
+              x
             </button>
           </div>
         )}
-        
+
         <div className="mb-10 text-center">
           <HeaderText
-            header="APT Casino Bank" 
+            header="APT Casino Bank"
             description="Manage your assets, deposit collateral, and borrow tokens to play your favorite casino games"
           />
         </div>
-        
+
         {/* Main Tabs */}
         <div className="mb-8">
           <div className="flex border-b border-white/10 overflow-x-auto custom-scrollbar">
-            <button 
+            <button
               className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${activeTab === 'swap' ? 'text-white border-b-2 border-blue-magic' : 'text-white/50 hover:text-white/80'}`}
               onClick={() => setActiveTab('swap')}
             >
               <FaExchangeAlt /> Swap
             </button>
-            <button 
+            <button
               className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${activeTab === 'borrow' ? 'text-white border-b-2 border-blue-magic' : 'text-white/50 hover:text-white/80'}`}
               onClick={() => setActiveTab('borrow')}
             >
               <FaUnlock /> Borrow
             </button>
-            <button 
+            <button
               className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${activeTab === 'lend' ? 'text-white border-b-2 border-blue-magic' : 'text-white/50 hover:text-white/80'}`}
               onClick={() => setActiveTab('lend')}
             >
               <FaLock /> Lend
             </button>
-            <button 
+            <button
               className={`px-6 py-3 font-medium transition-colors flex items-center gap-2 ${activeTab === 'history' ? 'text-white border-b-2 border-blue-magic' : 'text-white/50 hover:text-white/80'}`}
               onClick={() => setActiveTab('history')}
             >
@@ -238,37 +243,51 @@ export default function Bank() {
             </button>
           </div>
         </div>
-        
+
         {/* Tab Content */}
         <div className="mb-12">
           {activeTab === 'swap' && (
             <>
               <div className="max-w-2xl mx-auto mb-12">
-                <div className="bg-gradient-to-r p-[1px] from-red-magic to-blue-magic rounded-xl">
-                  {/* Ethereum Testnet Only - No Uniswap Integration */}
-        <div className="bg-gray-800 rounded-lg p-6 text-center">
-          <h3 className="text-xl font-semibold text-white mb-2">Push Chain Donut Testnet Only</h3>
-          <p className="text-gray-400">This application works exclusively with Push Chain Donut Testnet</p>
-        </div>
+                <div className="bg-gradient-to-r p-[1px] from-blue-500 to-cyan-500 rounded-xl">
+                  {/* Linera Testnet Only */}
+                  <div className="bg-gray-800 rounded-lg p-6 text-center">
+                    <h3 className="text-xl font-semibold text-white mb-2">Linera Conway Testnet</h3>
+                    <p className="text-gray-400 mb-4">This application runs exclusively on the Linera Conway Testnet</p>
+                    <div className="flex justify-center gap-4 text-sm">
+                      <div className="bg-blue-900/30 px-4 py-2 rounded-lg">
+                        <span className="text-blue-300">Chain ID:</span>
+                        <span className="text-white ml-2 font-mono">{LINERA_CONFIG.chainId.slice(0, 8)}...</span>
+                      </div>
+                      <a
+                        href={`${LINERA_CONFIG.explorerUrl}/chains/${LINERA_CONFIG.chainId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-cyan-900/30 px-4 py-2 rounded-lg hover:bg-cyan-900/50 transition-colors"
+                      >
+                        <span className="text-cyan-300">Explorer</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
-              
+
               {/* Market Trends - Only shown in swap tab */}
-              <div className="mb-12 p-[1px] bg-gradient-to-r from-red-magic/50 to-blue-magic/50 rounded-xl">
+              <div className="mb-12 p-[1px] bg-gradient-to-r from-blue-500/50 to-cyan-500/50 rounded-xl">
                 <div className="bg-[#1A0015] rounded-xl p-6">
                   <div className="flex items-center mb-4">
                     <FaChartLine className="text-blue-magic mr-2" />
                     <h2 className="text-xl font-display font-medium">Market Trends</h2>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-[#250020] p-4 rounded-lg hover:bg-[#350030] transition-colors">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-white/70 text-sm">PC Price</span>
+                        <span className="text-white/70 text-sm">LINERA Price</span>
                         <div className="flex items-center">
                           <div className="h-2 w-16 bg-[#120010] rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-red-magic to-blue-magic"
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500"
                               style={{ width: `${Math.min(Math.abs(marketTrends.og24hChange), 100)}%` }}
                             ></div>
                           </div>
@@ -283,7 +302,7 @@ export default function Bank() {
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className="bg-[#250020] p-4 rounded-lg hover:bg-[#350030] transition-colors">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-white/70 text-sm">Market Cap</span>
@@ -293,7 +312,7 @@ export default function Bank() {
                         <AnimatedNumber value={marketTrends.marketCap / 1000000} suffix="M" prefix="$" />
                       </div>
                     </div>
-                    
+
                     <div className="bg-[#250020] p-4 rounded-lg hover:bg-[#350030] transition-colors">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-white/70 text-sm">Total Value Locked</span>
@@ -303,7 +322,7 @@ export default function Bank() {
                         <AnimatedNumber value={marketTrends.totalLocked / 1000000} suffix="M" prefix="$" />
                       </div>
                     </div>
-                    
+
                     <div className="bg-[#250020] p-4 rounded-lg hover:bg-[#350030] transition-colors">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-white/70 text-sm">APY Range</span>
@@ -315,14 +334,14 @@ export default function Bank() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Stats Overview - Only shown in swap tab */}
               <div className="mb-12">
                 <StatsOverview />
               </div>
             </>
           )}
-          
+
           {activeTab === 'borrow' && (
             <div>
               <p className="text-white/70 mb-6">Borrow tokens with your deposited collateral. Maintain a healthy collateral ratio to avoid liquidation.</p>
@@ -333,18 +352,18 @@ export default function Bank() {
               </div>
             </div>
           )}
-          
+
           {activeTab === 'lend' && (
             <div>
               <p className="text-white/70 mb-6">Deposit collateral to earn interest and unlock borrowing power. The more you deposit, the more you can borrow.</p>
               <LendingTable assets={assets} isLoading={isLoading} />
             </div>
           )}
-          
+
           {activeTab === 'history' && (
             <div>
-              <p className="text-white/70 mb-6">Your transaction history in the APT Casino Bank. All transactions are recorded on the blockchain for transparency.</p>
-              
+              <p className="text-white/70 mb-6">Your transaction history in the APT Casino Bank. All transactions are recorded on the Linera blockchain for transparency.</p>
+
               {transactions.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
@@ -397,10 +416,10 @@ export default function Bank() {
             </div>
           )}
         </div>
-        
+
         {/* Information Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <div className="p-[1px] bg-gradient-to-r from-red-magic/30 to-blue-magic/30 rounded-xl hover:from-red-magic hover:to-blue-magic transition-all duration-300">
+          <div className="p-[1px] bg-gradient-to-r from-blue-500/30 to-cyan-500/30 rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all duration-300">
             <div className="bg-[#1A0015] rounded-xl p-6 h-full">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 rounded-full bg-[#250020] flex items-center justify-center mr-3">
@@ -413,19 +432,15 @@ export default function Bank() {
               </p>
               <ul className="space-y-2 mb-4">
                 <li className="flex justify-between">
-                  <span className="text-white/60">PC</span>
+                  <span className="text-white/60">LINERA</span>
                   <span className="text-green-500">12.5% APY</span>
                 </li>
                 <li className="flex justify-between">
-                  <span className="text-white/60">USDC</span>
+                  <span className="text-white/60">APTC</span>
                   <span className="text-green-500">8.2% APY</span>
                 </li>
-                <li className="flex justify-between">
-                  <span className="text-white/60">MNT</span>
-                  <span className="text-green-500">4.8% APY</span>
-                </li>
               </ul>
-              <button 
+              <button
                 onClick={() => setActiveTab('lend')}
                 className="text-sm bg-[#250020] hover:bg-[#350030] transition-colors py-2 px-4 rounded-lg flex items-center gap-2"
               >
@@ -433,8 +448,8 @@ export default function Bank() {
               </button>
             </div>
           </div>
-          
-          <div className="p-[1px] bg-gradient-to-r from-red-magic/30 to-blue-magic/30 rounded-xl hover:from-red-magic hover:to-blue-magic transition-all duration-300">
+
+          <div className="p-[1px] bg-gradient-to-r from-blue-500/30 to-cyan-500/30 rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all duration-300">
             <div className="bg-[#1A0015] rounded-xl p-6 h-full">
               <div className="flex items-center mb-4">
                 <div className="w-10 h-10 rounded-full bg-[#250020] flex items-center justify-center mr-3">
@@ -472,9 +487,14 @@ export default function Bank() {
                 </li>
               </ol>
               <div className="text-center">
-                <button className="bg-gradient-to-r from-red-magic to-blue-magic hover:from-blue-magic hover:to-red-magic transition-all text-white px-4 py-2 rounded-lg font-medium text-sm">
-                  Learn More
-                </button>
+                <a
+                  href={`${LINERA_CONFIG.explorerUrl}/chains/${LINERA_CONFIG.chainId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-cyan-500 hover:to-blue-500 transition-all text-white px-4 py-2 rounded-lg font-medium text-sm"
+                >
+                  View on Linera Explorer
+                </a>
               </div>
             </div>
           </div>

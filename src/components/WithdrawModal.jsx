@@ -4,14 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaTimes, FaWallet, FaCoins, FaArrowRight, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import { useSelector, useDispatch } from 'react-redux';
 import { setBalance } from '@/store/balanceSlice';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
-// Mock ethereumClient for demo purposes
-const ethereumClient = {
-  waitForTransaction: async ({ transactionHash }) => {
-    // Mock transaction wait for demo
-    return new Promise(resolve => setTimeout(resolve, 1000));
-  }
-};
+import { lineraWalletService } from '@/services/LineraWalletService';
 import { toast } from 'react-toastify';
 
 // Treasury wallet address - get from environment variables
@@ -22,18 +15,34 @@ const WithdrawModal = ({ isOpen, onClose }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [step, setStep] = useState('input'); // 'input', 'confirm', 'processing', 'success', 'error'
   const [error, setError] = useState('');
-  
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
+
   const { userBalance } = useSelector((state) => state.balance);
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const connected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const account = pushChainClient?.universal?.account || null;
   const dispatch = useDispatch();
-  
-  // Display balance PC format
+
+  // Listen for Linera wallet changes
+  useEffect(() => {
+    setIsConnected(lineraWalletService.isConnected());
+    setAddress(lineraWalletService.userAddress);
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Display balance LINERA format
   const balanceInPC = parseFloat(userBalance || '0') / 100000000;
-  const maxWithdraw = Math.max(0, balanceInPC - 0.01); // Reserve 0.01 PC for gas fees
-  
+  const maxWithdraw = Math.max(0, balanceInPC - 0.01); // Reserve 0.01 for fees
+
   useEffect(() => {
     if (!isOpen) {
       setStep('input');
@@ -42,7 +51,7 @@ const WithdrawModal = ({ isOpen, onClose }) => {
       setIsProcessing(false);
     }
   }, [isOpen]);
-  
+
   const handleAmountChange = (e) => {
     const value = e.target.value;
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
@@ -50,78 +59,78 @@ const WithdrawModal = ({ isOpen, onClose }) => {
       setError('');
     }
   };
-  
+
   const validateWithdraw = () => {
     const amount = parseFloat(withdrawAmount);
-    
+
     if (!amount || amount <= 0) {
       setError('Please enter a valid amount');
       return false;
     }
-    
+
     if (amount > maxWithdraw) {
-      setError(`Insufficient balance. Max withdraw: ${maxWithdraw.toFixed(4)} PC`);
+      setError(`Insufficient balance. Max withdraw: ${maxWithdraw.toFixed(4)} LINERA`);
       return false;
     }
-    
+
     if (amount < 0.001) {
-      setError('Minimum withdraw amount is 0.001 PC');
+      setError('Minimum withdraw amount is 0.001 LINERA');
       return false;
     }
-    
+
     return true;
   };
-  
+
   const handleWithdraw = async () => {
     if (!validateWithdraw()) return;
-    
-    if (!connected || !account) {
+
+    if (!isConnected || !address) {
       setError('Please connect your wallet');
       return;
     }
-    
+
     setStep('confirm');
   };
-  
+
   const confirmWithdraw = async () => {
     setStep('processing');
     setIsProcessing(true);
-    
+
     try {
       const amount = parseFloat(withdrawAmount);
-      
-      // Call backend API to process withdrawal from treasury
+
+      // Call backend API to process withdrawal
       const response = await fetch('/api/withdraw', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userAddress: account.address,
+          userAddress: address,
           amount: amount
         })
       });
-      
+
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.error || 'Withdrawal failed');
       }
-      
+
       // Deduct from user's balance
       const amountOctas = Math.floor(amount * 100000000);
       const currentBalanceOctas = parseInt(userBalance || '0');
       const newBalanceOctas = currentBalanceOctas - amountOctas;
       dispatch(setBalance(newBalanceOctas.toString()));
-      
+
       setStep('success');
-      toast.success(`Successfully withdrew ${amount} PC! TX: ${result.transactionHash.slice(0, 8)}...`);
-      
+      toast.success(`Successfully withdrew ${amount} LINERA! TX: ${result.transactionHash?.slice(0, 8) || 'pending'}...`);
+
       // Close modal after 3 seconds
       setTimeout(() => {
         onClose();
       }, 3000);
-      
+
     } catch (error) {
       console.error('Withdraw error:', error);
       setError(`Withdraw failed: ${error.message}`);
@@ -130,44 +139,44 @@ const WithdrawModal = ({ isOpen, onClose }) => {
       setIsProcessing(false);
     }
   };
-  
+
   const renderStep = () => {
     switch (step) {
       case 'input':
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FaWallet className="text-2xl text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">Withdraw PC</h3>
-              <p className="text-gray-400">Transfer your winnings to your Push Chain Donut Testnet wallet</p>
+              <h3 className="text-2xl font-bold text-white mb-2">Withdraw LINERA</h3>
+              <p className="text-gray-400">Transfer your winnings to your Linera wallet</p>
             </div>
-            
+
             <div className="bg-gray-800/50 rounded-lg p-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-400">Available Balance:</span>
-                <span className="text-white font-bold">{balanceInPC.toFixed(4)} PC</span>
+                <span className="text-white font-bold">{balanceInPC.toFixed(4)} LINERA</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Max Withdraw:</span>
-                <span className="text-green-400 font-bold">{maxWithdraw.toFixed(4)} PC</span>
+                <span className="text-emerald-400 font-bold">{maxWithdraw.toFixed(4)} LINERA</span>
               </div>
             </div>
-            
+
             <div>
-              <label className="block text-gray-300 mb-2">Withdraw PC</label>
+              <label className="block text-gray-300 mb-2">Withdraw Amount</label>
               <div className="relative">
                 <input
                   type="text"
                   value={withdrawAmount}
                   onChange={handleAmountChange}
                   placeholder="0.0000"
-                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white text-lg focus:border-green-500 focus:outline-none"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white text-lg focus:border-emerald-500 focus:outline-none"
                 />
                 <button
                   onClick={() => setWithdrawAmount(maxWithdraw.toString())}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400 hover:text-green-300 text-sm font-medium"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-emerald-400 hover:text-emerald-300 text-sm font-medium"
                 >
                   MAX
                 </button>
@@ -179,7 +188,7 @@ const WithdrawModal = ({ isOpen, onClose }) => {
                 </p>
               )}
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={onClose}
@@ -190,7 +199,7 @@ const WithdrawModal = ({ isOpen, onClose }) => {
               <button
                 onClick={handleWithdraw}
                 disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0}
-                className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg text-white font-medium transition-all flex items-center justify-center gap-2"
               >
                 Continue
                 <FaArrowRight />
@@ -198,7 +207,7 @@ const WithdrawModal = ({ isOpen, onClose }) => {
             </div>
           </div>
         );
-        
+
       case 'confirm':
         return (
           <div className="space-y-6">
@@ -209,27 +218,27 @@ const WithdrawModal = ({ isOpen, onClose }) => {
               <h3 className="text-2xl font-bold text-white mb-2">Confirm Withdrawal</h3>
               <p className="text-gray-400">Please review your withdrawal details</p>
             </div>
-            
+
             <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-400">Withdraw Amount:</span>
-                <span className="text-white font-bold">{withdrawAmount} PC</span>
+                <span className="text-white font-bold">{withdrawAmount} LINERA</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">To Wallet:</span>
-                <span className="text-white font-mono text-sm">{account?.address?.slice(0, 6)}...{account?.address?.slice(-4)}</span>
+                <span className="text-white font-mono text-sm">{address?.slice(0, 6)}...{address?.slice(-4)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Network Fee:</span>
-                <span className="text-yellow-400">~0.001 PC</span>
+                <span className="text-yellow-400">~0.001 LINERA</span>
               </div>
               <hr className="border-gray-600" />
               <div className="flex justify-between">
                 <span className="text-gray-400">You'll Receive:</span>
-                <span className="text-green-400 font-bold">{(parseFloat(withdrawAmount) - 0.001).toFixed(4)} PC</span>
+                <span className="text-emerald-400 font-bold">{(parseFloat(withdrawAmount) - 0.001).toFixed(4)} LINERA</span>
               </div>
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={() => setStep('input')}
@@ -239,60 +248,60 @@ const WithdrawModal = ({ isOpen, onClose }) => {
               </button>
               <button
                 onClick={confirmWithdraw}
-                className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-lg text-white font-medium transition-all"
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 rounded-lg text-white font-medium transition-all"
               >
                 Confirm Withdrawal
               </button>
             </div>
           </div>
         );
-        
+
       case 'processing':
         return (
           <div className="space-y-6 text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">Processing Withdrawal</h3>
             <p className="text-gray-400">Please wait while we process your withdrawal...</p>
-            
+
             <div className="bg-gray-800/50 rounded-lg p-4">
               <div className="flex justify-between mb-2">
                 <span className="text-gray-400">Amount:</span>
-                <span className="text-white font-bold">{withdrawAmount} PC</span>
+                <span className="text-white font-bold">{withdrawAmount} LINERA</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Status:</span>
-                <span className="text-blue-400">Processing...</span>
+                <span className="text-emerald-400">Processing...</span>
               </div>
             </div>
           </div>
         );
-        
+
       case 'success':
         return (
           <div className="space-y-6 text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <FaCheck className="text-2xl text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">Withdrawal Successful!</h3>
-            <p className="text-gray-400">Your PC has been sent to your wallet</p>
-            
-            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+            <p className="text-gray-400">Your LINERA has been sent to your wallet</p>
+
+            <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-4">
               <div className="flex justify-between mb-2">
                 <span className="text-gray-400">Amount Sent:</span>
-                <span className="text-green-400 font-bold">{withdrawAmount} PC</span>
+                <span className="text-emerald-400 font-bold">{withdrawAmount} LINERA</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">To Wallet:</span>
-                <span className="text-white font-mono text-sm">{account?.address?.slice(0, 6)}...{account?.address?.slice(-4)}</span>
+                <span className="text-white font-mono text-sm">{address?.slice(0, 6)}...{address?.slice(-4)}</span>
               </div>
             </div>
-            
+
             <p className="text-sm text-gray-500">This modal will close automatically in a few seconds...</p>
           </div>
         );
-        
+
       case 'error':
         return (
           <div className="space-y-6 text-center">
@@ -301,11 +310,11 @@ const WithdrawModal = ({ isOpen, onClose }) => {
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">Withdrawal Failed</h3>
             <p className="text-gray-400">There was an error processing your withdrawal</p>
-            
+
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
               <p className="text-red-400">{error}</p>
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={() => setStep('input')}
@@ -322,12 +331,12 @@ const WithdrawModal = ({ isOpen, onClose }) => {
             </div>
           </div>
         );
-        
+
       default:
         return null;
     }
   };
-  
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -353,7 +362,7 @@ const WithdrawModal = ({ isOpen, onClose }) => {
                 <FaTimes />
               </button>
             )}
-            
+
             {renderStep()}
           </motion.div>
         </motion.div>

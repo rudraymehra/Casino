@@ -89,7 +89,7 @@ export default function Home() {
     // Check if wallet is connected first
     console.log('🔌 Wheel Bet - Wallet Status:', { isConnected, userBalance });
     if (!isConnected) {
-      alert("Please connect your Ethereum wallet first to play Wheel!");
+      alert("Please connect your Linera wallet first to play Wheel!");
       return;
     }
 
@@ -138,70 +138,19 @@ export default function Home() {
             })
           });
           
-          const pushResult = await lineraResponse.json();
-          console.log('🔗 Push Chain logging result (Wheel):', pushResult);
-          console.log('🔗 Push Chain TX Hash:', pushResult.transactionHash);
-          console.log('🔗 Push Chain Explorer URL:', pushResult.pushChainExplorerUrl);
-
-          // Log to all blockchains (Solana and Linera) in parallel
-          const gameLogData = {
-            gameType: 'WHEEL',
-            gameResult: {
-              multiplier: targetHistoryItem.multiplier,
-              payout: targetHistoryItem.payout,
-              segments: targetHistoryItem.segments || 'unknown'
-            },
-            playerAddress: 'unknown', // Will be updated when wallet integration is available
-            betAmount: targetHistoryItem.betAmount || 0,
-            payout: targetHistoryItem.payout || 0,
-            entropyProof: {
-              requestId: lineraResult.proof?.requestId,
-              sequenceNumber: lineraResult.proof?.sequenceNumber,
-              randomValue: lineraResult.gameId,
-              transactionHash: lineraResult.proof?.commitHash,
-              timestamp: lineraResult.proof?.timestamp
-            }
-          };
-
-          // Parallel blockchain logging
-          const [solanaResult, lineraResult] = await Promise.allSettled([
-            // Solana logging
-            fetch('/api/log-to-solana', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(gameLogData)
-            }).then(res => res.json()).catch(err => ({ success: false, error: err.message })),
-            
-            // Linera logging
-            fetch('/api/log-to-linera', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(gameLogData)
-            }).then(res => res.json()).catch(err => ({ success: false, error: err.message }))
-          ]);
-
-          // Process Solana result
-          const solanaLogResult = solanaResult.status === 'fulfilled' ? solanaResult.value : { success: false, error: solanaResult.reason };
-          console.log('☀️ Solana logging result (Wheel):', solanaLogResult);
-          if (solanaLogResult.success) {
-            console.log('🔗 Solana TX Signature:', solanaLogResult.transactionSignature);
-            console.log('🔗 Solana Explorer URL:', solanaLogResult.solanaExplorerUrl);
+          const lineraApiResult = await lineraResponse.json();
+          console.log('⚡ Linera logging result (Wheel):', lineraApiResult);
+          if (lineraApiResult.success) {
+            console.log('🔗 Linera Chain ID:', lineraApiResult.chainId);
+            console.log('🔗 Linera Block Height:', lineraApiResult.blockHeight);
+            console.log('🔗 Linera Explorer URL:', lineraApiResult.lineraExplorerUrl);
           }
 
-          // Process Linera result
-          const lineraLogResult = lineraResult.status === 'fulfilled' ? lineraResult.value : { success: false, error: lineraResult.reason };
-          console.log('⚡ Linera logging result (Wheel):', lineraLogResult);
-          if (lineraLogResult.success) {
-            console.log('🔗 Linera Chain ID:', lineraLogResult.chainId);
-            console.log('🔗 Linera Block Height:', lineraLogResult.blockHeight);
-            console.log('🔗 Linera Explorer URL:', lineraLogResult.lineraExplorerUrl);
-          }
-          
-          // Update the history item with real entropy proof, Push Chain, Solana and Linera info
+          // Update the history item with Linera proof info
           console.log('🔄 Updating history item with ID:', historyItemId);
           setGameHistory(prev => {
-            const updated = prev.map(item => 
-              item.id === historyItemId 
+            const updated = prev.map(item =>
+              item.id === historyItemId
                 ? {
                     ...item,
                     entropyProof: {
@@ -210,19 +159,14 @@ export default function Home() {
                       randomValue: lineraResult.gameId,
                       randomNumber: lineraResult.gameId,
                       transactionHash: lineraResult.proof?.commitHash,
-                      monadExplorerUrl: null,
-                      explorerUrl: null,
                       timestamp: lineraResult.proof?.timestamp,
                       source: 'Linera Proof',
-                      pushChainTxHash: pushResult.success ? pushResult.transactionHash : null,
-                      pushChainExplorerUrl: pushResult.success ? pushResult.pushChainExplorerUrl : null,
-                      solanaTxSignature: solanaLogResult.success ? solanaLogResult.transactionSignature : null,
-                      solanaExplorerUrl: solanaLogResult.success ? solanaLogResult.solanaExplorerUrl : null
+                      lineraExplorerUrl: lineraApiResult.success ? lineraApiResult.lineraExplorerUrl : null
                     },
                     // Add Linera data to main item
-                    lineraChainId: lineraLogResult.success ? lineraLogResult.chainId : null,
-                    lineraBlockHeight: lineraLogResult.success ? lineraLogResult.blockHeight : null,
-                    lineraExplorerUrl: lineraLogResult.success ? lineraLogResult.lineraExplorerUrl : null
+                    lineraChainId: lineraApiResult.success ? lineraApiResult.chainId : null,
+                    lineraBlockHeight: lineraApiResult.success ? lineraApiResult.blockHeight : null,
+                    lineraExplorerUrl: lineraApiResult.success ? lineraApiResult.lineraExplorerUrl : null
                   }
                 : item
             );
@@ -230,13 +174,13 @@ export default function Home() {
             return updated;
           });
         } catch (error) {
-          console.error('❌ Push Chain logging failed (Wheel):', error);
+          console.error('❌ Linera logging failed (Wheel):', error);
           
           // Update the history item with entropy proof only
           console.log('🔄 Updating history item (entropy only) with ID:', historyItemId);
           setGameHistory(prev => {
-            const updated = prev.map(item => 
-              item.id === historyItemId 
+            const updated = prev.map(item =>
+              item.id === historyItemId
                 ? {
                     ...item,
                     entropyProof: {
@@ -245,8 +189,6 @@ export default function Home() {
                       randomValue: lineraResult.gameId,
                       randomNumber: lineraResult.gameId,
                       transactionHash: lineraResult.proof?.commitHash,
-                      monadExplorerUrl: null,
-                      explorerUrl: null,
                       timestamp: lineraResult.proof?.timestamp,
                       source: 'Linera Proof'
                     }
@@ -357,10 +299,9 @@ export default function Home() {
             randomValue: Math.floor(Math.random() * 1000000),
             randomNumber: Math.floor(Math.random() * 1000000),
             transactionHash: 'generating...',
-            monadExplorerUrl: 'https://testnet.monadexplorer.com/',
-            explorerUrl: 'https://entropy-explorer.pyth.network/?chain=arbitrum-sepolia',
+            lineraExplorerUrl: 'https://explorer.testnet-conway.linera.net',
             timestamp: Date.now(),
-            source: 'Generating...'
+            source: 'Generating Linera proof...'
           };
 
           setGameHistory(prev => [newHistoryItem, ...prev]);
@@ -419,7 +360,7 @@ export default function Home() {
   }) => {
     // Check if wallet is connected first
     if (!isConnected) {
-      alert('Please connect your Ethereum wallet first to play Wheel!');
+      alert('Please connect your Linera wallet first to play Wheel!');
       return;
     }
     

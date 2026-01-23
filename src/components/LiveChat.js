@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
 function normalizeWalletAddress(account) {
   try {
@@ -12,12 +12,6 @@ function normalizeWalletAddress(account) {
     if (!addr) return undefined;
     if (typeof addr === 'string') return addr;
     if (typeof addr.toString === 'function') return addr.toString();
-    if (addr.data && typeof addr.data === 'object') {
-      // Uint8Array → hex
-      const bytes = Array.from(addr.data);
-      const hex = '0x' + bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
-      return hex;
-    }
     return String(addr);
   } catch {
     return undefined;
@@ -25,9 +19,23 @@ function normalizeWalletAddress(account) {
 }
 
 export default function LiveChat({ open, onClose }) {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const address = pushChainClient?.universal?.account || null;
+  const [address, setAddress] = useState(null);
+
+  // Listen for Linera wallet
+  useEffect(() => {
+    setAddress(lineraWalletService.userAddress);
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setAddress(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const walletAddr = address || "guest";
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -99,22 +107,22 @@ export default function LiveChat({ open, onClose }) {
   if (!open || !mounted) return null;
 
   const node = (
-      <div className="fixed right-4 bottom-4 z-[1000] w-[360px] max-w-[90vw] bg-[#0e0010]/95 border border-purple-500/30 rounded-2xl shadow-2xl backdrop-blur">
+      <div className="fixed right-4 bottom-4 z-[1000] w-[360px] max-w-[90vw] bg-[#0e0010]/95 border border-emerald-500/30 rounded-2xl shadow-2xl backdrop-blur">
         <div
-          className={`p-3 border-b border-purple-500/20 flex items-center justify-between ${minimized ? 'cursor-pointer' : ''}`}
+          className={`p-3 border-b border-emerald-500/20 flex items-center justify-between ${minimized ? 'cursor-pointer' : ''}`}
           onClick={() => { if (minimized) setMinimized(false); }}
         >
           <div className="text-white/80 text-sm">Live Chat</div>
           <div className="flex items-center gap-2">
-            <button className="text-white/60 hover:text-white" onClick={() => setMinimized((v) => !v)}>{minimized ? '▢' : '–'}</button>
-            <button className="text-white/60 hover:text-white" onClick={onClose}>✕</button>
+            <button className="text-white/60 hover:text-white" onClick={() => setMinimized((v) => !v)}>{minimized ? '' : ''}</button>
+            <button className="text-white/60 hover:text-white" onClick={onClose}>X</button>
           </div>
         </div>
         {!minimized && (
         <div className="p-3 h-[360px] overflow-y-auto space-y-2">
           {messages.map((m) => (
             <div key={m.id} className="text-white/80 text-sm">
-              <span className="text-white/50 mr-2">{(m.wallet_address || 'guest').slice(0,6)}…{(m.wallet_address || 'guest').slice(-4)}</span>
+              <span className="text-white/50 mr-2">{(m.wallet_address || 'guest').slice(0,6)}...{(m.wallet_address || 'guest').slice(-4)}</span>
               <span>{m.content}</span>
             </div>
           ))}
@@ -122,19 +130,17 @@ export default function LiveChat({ open, onClose }) {
         </div>
         )}
         {!minimized && (
-        <form onSubmit={sendMessage} className="p-3 border-t border-purple-500/20 flex items-center gap-2">
+        <form onSubmit={sendMessage} className="p-3 border-t border-emerald-500/20 flex items-center gap-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Type a message"
-            className="flex-1 px-3 py-2 rounded-md bg-[#1a001a] border border-purple-500/30 text-white placeholder-white/30 focus:outline-none focus:border-purple-400"
+            className="flex-1 px-3 py-2 rounded-md bg-[#1a001a] border border-emerald-500/30 text-white placeholder-white/30 focus:outline-none focus:border-emerald-400"
           />
-          <button type="submit" className="px-3 py-2 rounded-md bg-gradient-to-r from-red-magic to-blue-magic text-white text-sm">Send</button>
+          <button type="submit" className="px-3 py-2 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-sm">Send</button>
         </form>
         )}
       </div>
   );
   return createPortal(node, document.body);
 }
-
-

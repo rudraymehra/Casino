@@ -3,37 +3,25 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-// Using Next.js public asset reference instead of import
 import { FaExternalLinkAlt } from "react-icons/fa";
+
+// Linera Configuration
+const LINERA_CONFIG = {
+  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
+  explorerUrl: 'https://explorer.testnet-conway.linera.net',
+};
 
 const GameHistory = ({ gameHistory }) => {
   const [activeTab, setActiveTab] = useState("my-bet");
   const [entriesShown, setEntriesShown] = useState(10);
-  
-  // Format transaction hash for display
-  const formatTxHash = (hash) => {
-    if (!hash) return 'N/A';
-    return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+
+  // Open Linera Explorer link
+  const openLineraExplorer = (chainId) => {
+    const targetChainId = chainId || LINERA_CONFIG.chainId;
+    const explorerUrl = `${LINERA_CONFIG.explorerUrl}/chains/${targetChainId}`;
+    window.open(explorerUrl, '_blank');
   };
-  
-  // Open Arbiscan link
-  const openArbiscan = (hash) => {
-    if (hash) {
-      const network = process.env.NEXT_PUBLIC_NETWORK || 'arbitrum-sepolia';
-      let explorerUrl;
-      
-      if (network === 'arbitrum-sepolia') {
-        explorerUrl = `https://sepolia.arbiscan.io/tx/${hash}`;
-      } else if (network === 'arbitrum-one') {
-        explorerUrl = `https://arbiscan.io/tx/${hash}`;
-      } else {
-        explorerUrl = `https://sepolia.etherscan.io/tx/${hash}`;
-      }
-      
-      window.open(explorerUrl, '_blank');
-    }
-  };
-  
+
   return (
     <div className="bg-[#070005] w-full rounded-xl overflow-hidden mt-0">
       <div className="flex flex-row justify-between items-center">
@@ -65,7 +53,7 @@ const GameHistory = ({ gameHistory }) => {
 
         <div className="flex gradient-border mb-5 md:mb-0">
           <div className="flex space-x-4">
-            <select 
+            <select
               className="bg-[#120521] text-white text-md p-3 px-2 md:px-6 rounded border border-purple-900/30"
               value={entriesShown}
               onChange={(e) => setEntriesShown(Number(e.target.value))}
@@ -79,7 +67,7 @@ const GameHistory = ({ gameHistory }) => {
 
       </div>
 
-      
+
       {activeTab === "my-bet" && (
         <div className="overflow-x-auto">
           <table className="w-full mt-4 text-md">
@@ -90,7 +78,7 @@ const GameHistory = ({ gameHistory }) => {
                 <th className="py-6 px-4 font-medium">Bet amount</th>
                 <th className="py-6 px-4 font-medium">Multiplier</th>
                 <th className="py-6 px-4 font-medium">Payout</th>
-                <th className="py-6 px-4 font-medium">Pyth Entropy</th>
+                <th className="py-6 px-4 font-medium">Linera Proof</th>
               </tr>
             </thead>
             <tbody>
@@ -104,85 +92,58 @@ const GameHistory = ({ gameHistory }) => {
                     <td className="py-6 px-4">{item.time}</td>
                     <td className="py-6 px-4">
                       <span className="flex items-center">
-                        {item.betAmount.toFixed(10)}
+                        {typeof item.betAmount === 'number' ? item.betAmount.toFixed(10) : item.betAmount}
                         <Image
                           src="/coin.png"
                           width={20}
                           height={20}
                           alt="coin"
                           className=""
-                        />  
+                        />
                       </span>
                     </td>
                     <td className="py-6 px-4">{item.multiplier}</td>
                     <td className="py-6 px-4">
                       <span className="flex items-center">
-                        {item.payout.toFixed(10)}
+                        {typeof item.payout === 'number' ? item.payout.toFixed(10) : item.payout}
                         <Image
                           src="/coin.png"
                           width={20}
                           height={20}
                           alt="coin"
                           className=""
-                        />  
+                        />
                       </span>
                     </td>
                     <td className="py-6 px-4">
-                      {item.entropyProof ? (
+                      {item.entropyProof || item.lineraChainId ? (
                         <div className="text-xs text-gray-300 font-mono">
-                          <div className="text-yellow-400 font-bold">{item.entropyProof.sequenceNumber && item.entropyProof.sequenceNumber !== '0' ? String(item.entropyProof.sequenceNumber) : ''}</div>
+                          <div className="text-yellow-400 font-bold">
+                            {item.entropyProof?.sequenceNumber && item.entropyProof.sequenceNumber !== '0'
+                              ? String(item.entropyProof.sequenceNumber)
+                              : item.lineraChainId
+                                ? `Chain: ${item.lineraChainId.slice(0, 8)}...`
+                                : ''}
+                          </div>
                           <div className="flex gap-1 mt-1 flex-wrap">
-                            {item.entropyProof.pushChainTxHash && (
-                              <button
-                                onClick={() => window.open(item.entropyProof.pushChainExplorerUrl, '_blank')}
-                                className="flex items-center gap-1 px-2 py-1 bg-[#8B2398]/10 border border-[#8B2398]/30 rounded text-[#8B2398] text-xs hover:bg-[#8B2398]/20 transition-colors"
-                              >
-                                <FaExternalLinkAlt size={8} />
-                                Push
-                              </button>
-                            )}
-                            {item.entropyProof.solanaTxSignature && (
-                              <button
-                                onClick={() => window.open(item.entropyProof.solanaExplorerUrl, '_blank')}
-                                className="flex items-center gap-1 px-2 py-1 bg-[#14D854]/10 border border-[#14D854]/30 rounded text-[#14D854] text-xs hover:bg-[#14D854]/20 transition-colors"
-                              >
-                                <FaExternalLinkAlt size={8} />
-                                Solana
-                              </button>
-                            )}
-                            {item.lineraChainId && (
-                              <button
-                                onClick={() => window.open(item.lineraExplorerUrl, '_blank')}
-                                className="flex items-center gap-1 px-2 py-1 bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded text-[#3B82F6] text-xs hover:bg-[#3B82F6]/20 transition-colors"
-                              >
-                                <FaExternalLinkAlt size={8} />
-                                Linera
-                              </button>
-                            )}
-                            {item.entropyProof.arbiscanUrl && (
-                              <button
-                                onClick={() => window.open(item.entropyProof.arbiscanUrl, '_blank')}
-                                className="flex items-center gap-1 px-2 py-1 bg-blue-500/10 border border-blue-500/30 rounded text-blue-400 text-xs hover:bg-blue-500/20 transition-colors"
-                              >
-                                <FaExternalLinkAlt size={8} />
-                                Arbiscan
-                              </button>
-                            )}
-                            {item.entropyProof.transactionHash && (
-                              <button
-                                onClick={() => window.open(`https://entropy-explorer.pyth.network/?chain=arbitrum-sepolia&search=${item.entropyProof.transactionHash}`, '_blank')}
-                                className="flex items-center gap-1 px-2 py-1 bg-[#681DDB]/10 border border-[#681DDB]/30 rounded text-[#681DDB] text-xs hover:bg-[#681DDB]/20 transition-colors"
-                              >
-                                <FaExternalLinkAlt size={8} />
-                                Entropy
-                              </button>
-                            )}
+                            <button
+                              onClick={() => {
+                                const url = item.lineraExplorerUrl ||
+                                           item.entropyProof?.lineraExplorerUrl ||
+                                           `${LINERA_CONFIG.explorerUrl}/chains/${item.lineraChainId || LINERA_CONFIG.chainId}`;
+                                window.open(url, '_blank');
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded text-[#3B82F6] text-xs hover:bg-[#3B82F6]/20 transition-colors"
+                            >
+                              <FaExternalLinkAlt size={8} />
+                              Linera
+                            </button>
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-purple-400 text-xs">Generating...</span>
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-blue-400 text-xs">Generating...</span>
                         </div>
                       )}
                     </td>
@@ -190,7 +151,7 @@ const GameHistory = ({ gameHistory }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-400">
+                  <td colSpan={6} className="py-8 text-center text-gray-400">
                     No game history yet. Place your first bet!
                   </td>
                 </tr>
@@ -199,12 +160,12 @@ const GameHistory = ({ gameHistory }) => {
           </table>
         </div>
       )}
-      
+
       {activeTab === "game-description" && (
         <div className="p-4 text-sm text-gray-300">
           <h3 className="font-medium mb-2">Crazy Times</h3>
           <p>
-            Crazy Times is an exciting game of chance where you place bets on a spinning wheel. 
+            Crazy Times is an exciting game of chance where you place bets on a spinning wheel.
             Select your bet amount, risk level, and the number of segments on the wheel.
             The wheel will spin and land on a multiplier, which determines your payout.
             Higher risk levels can lead to higher multipliers but may be less likely to hit.
@@ -217,6 +178,12 @@ const GameHistory = ({ gameHistory }) => {
             <li>Click the &quot;Bet&quot; button to spin the wheel</li>
             <li>If the wheel lands on a multiplier, your bet amount will be multiplied accordingly</li>
           </ol>
+          <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-800/30">
+            <p className="text-blue-300 text-sm">
+              All games are provably fair and verified on the Linera blockchain.
+              View your game history on the Linera Conway Testnet explorer.
+            </p>
+          </div>
         </div>
       )}
     </div>

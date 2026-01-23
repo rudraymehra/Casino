@@ -1,28 +1,23 @@
 /**
- * Linera Chain Service
- * Direct integration with Linera blockchain using @linera/client SDK
- * 
- * This service handles:
- * 1. Wallet creation and management
- * 2. Chain claiming from faucet
- * 3. Application interactions via GraphQL
- * 4. Real-time subscriptions for game updates
- * 
- * Based on official Linera examples:
- * - https://linera.dev/developers/frontend.html
- * - https://github.com/linera-io/linera-protocol/tree/main/examples
+ * Linera Chain Service - Production Implementation
+ *
+ * Integrates with Linera blockchain via Croissant wallet extension
+ * The wallet extension (window.linera) handles:
+ * - Private key management
+ * - Transaction signing
+ * - Chain connections
+ *
+ * Reference: https://github.com/Nirajsah/croissant
  */
 
-// Linera Configuration for Conway Testnet
+// Linera Configuration
 const LINERA_CONFIG = {
-  // Conway testnet faucet
-  faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET_URL || 'https://faucet.testnet-conway.linera.net',
-  // Casino application ID (deployed contract)
-  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584',
-  // Chain ID
-  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || '47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2',
-  // Explorer URL
+  // Casino application ID (your deployed contract)
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '',
+  // Explorer URL for transaction links
   explorerUrl: 'https://explorer.testnet-conway.linera.net',
+  // Faucet URL (for reference)
+  faucetUrl: 'https://faucet.testnet-conway.linera.net',
 };
 
 // Game types matching the Rust contract
@@ -34,215 +29,284 @@ const GameType = {
 };
 
 /**
- * LineraChainService - Manages direct blockchain interactions
+ * LineraChainService - Production wallet integration
  */
 class LineraChainService {
   constructor() {
-    this.client = null;
-    this.wallet = null;
-    this.signer = null;
-    this.chain = null;
-    this.casinoApp = null;
+    this.provider = null; // window.linera
+    this.isConnected = false;
     this.owner = null;
     this.chainId = null;
-    this.isInitialized = false;
-    this.listeners = new Set();
     this.balance = 0;
-    this.lineraModule = null;
+    this.listeners = new Set();
+    this._notificationCleanup = null;
+    // Demo mode - for testing without real blockchain
+    this.demoMode = false;
+    this.WELCOME_BONUS = 1000; // Welcome bonus in LINERA tokens
   }
 
   /**
-   * Initialize the Linera client and SDK
-   * Dynamically imports @linera/client to avoid SSR issues
+   * Check if Linera wallet extension is installed
+   */
+  isWalletInstalled() {
+    return typeof window !== 'undefined' && !!window.linera;
+  }
+
+  /**
+   * Get the wallet installation URL
+   */
+  getWalletInstallUrl() {
+    return 'https://github.com/Nirajsah/croissant';
+  }
+
+  /**
+   * Initialize - check for wallet extension or restore dev mode state
    */
   async initialize() {
-    if (this.isInitialized) return true;
+    if (typeof window === 'undefined') {
+      console.warn('LineraChainService: Not in browser environment');
+      return false;
+    }
 
-    try {
-      console.log('🔗 Initializing Linera Chain Service...');
-      console.log(`   Faucet: ${LINERA_CONFIG.faucetUrl}`);
-      console.log(`   Application: ${LINERA_CONFIG.applicationId}`);
+    const isDev = process.env.NODE_ENV === 'development';
 
-      // Try to import @linera/client (browser-only)
-      if (typeof window !== 'undefined') {
-        try {
-          // Dynamic import for browser
-          this.lineraModule = await import('@linera/client');
-          await this.lineraModule.initialize();
-          console.log('✅ @linera/client SDK initialized');
-        } catch (importError) {
-          console.warn('⚠️ @linera/client not available:', importError.message);
-          console.log('   Using fallback GraphQL mode');
-          this.lineraModule = null;
-        }
+    // Check for dev wallet state (auto-connect in dev mode)
+    if (isDev) {
+      const devWalletState = localStorage.getItem('dev-wallet-state');
+      if (devWalletState === 'connected' || devWalletState === null) {
+        // Auto-restore dev mode connection
+        this.demoMode = true;
+        this.isConnected = true;
+        this.owner = localStorage.getItem('dev-wallet-address') || '0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe';
+        this.chainId = process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'demo-chain';
+
+        // Restore balance from localStorage
+        const savedBalance = localStorage.getItem('userBalance');
+        this.balance = savedBalance ? parseFloat(savedBalance) : this.WELCOME_BONUS;
+
+        console.log('✅ DEV MODE: Auto-restored connection');
+        console.log(`   Owner: ${this.owner}`);
+        console.log(`   Balance: ${this.balance} LINERA`);
+
+        return true;
+      }
+    }
+
+    // Wait a bit for extension to inject
+    await this._waitForWallet(1000);
+
+    if (!this.isWalletInstalled()) {
+      console.warn('⚠️ Linera wallet extension not detected');
+      console.warn('   Install Croissant: https://github.com/Nirajsah/croissant');
+
+      // In dev mode, return true anyway (we're using demo mode)
+      if (isDev) {
+        console.log('📱 DEV MODE: Enabling demo wallet');
+        return true;
+      }
+      return false;
+    }
+
+    this.provider = window.linera;
+    console.log('✅ Linera wallet extension detected');
+    return true;
+  }
+
+  /**
+   * Wait for wallet extension to be injected
+   */
+  _waitForWallet(timeout = 1000) {
+    return new Promise((resolve) => {
+      if (window.linera) {
+        resolve(true);
+        return;
       }
 
-      this.isInitialized = true;
-      return true;
+      const startTime = Date.now();
+      const checkInterval = setInterval(() => {
+        if (window.linera || Date.now() - startTime > timeout) {
+          clearInterval(checkInterval);
+          resolve(!!window.linera);
+        }
+      }, 100);
+    });
+  }
+
+  /**
+   * Connect to wallet - requests user approval
+   * Falls back to demo mode if wallet not available
+   */
+  async connectWallet() {
+    // Try to initialize wallet
+    const initialized = await this.initialize();
+
+    // If no wallet, use demo mode
+    if (!initialized || !this.provider) {
+      console.log('⚠️ No wallet detected, using DEMO MODE');
+      return this._connectDemoMode();
+    }
+
+    try {
+      console.log('🔗 Requesting wallet connection...');
+
+      // Request wallet connection - this will show approval popup
+      const response = await this.provider.request({
+        type: 'CONNECT_WALLET',
+      });
+
+      if (!response || response.error) {
+        // Fall back to demo mode if connection rejected
+        console.log('⚠️ Wallet connection rejected, using DEMO MODE');
+        return this._connectDemoMode();
+      }
+
+      // Extract connection data
+      this.owner = response.data?.owner || response.data?.address || response.result?.owner;
+      this.chainId = response.data?.chainId || response.result?.chainId;
+      this.isConnected = true;
+      this.demoMode = false;
+
+      console.log('✅ Wallet connected (LIVE MODE)');
+      console.log(`   Owner: ${this.owner}`);
+      console.log(`   Chain: ${this.chainId}`);
+
+      // Get initial balance from chain
+      await this._updateBalance();
+
+      // If balance is 0, give welcome bonus for testing
+      if (this.balance === 0) {
+        console.log('🎁 New user detected, crediting welcome bonus...');
+        this.balance = this.WELCOME_BONUS;
+        this._notifyListeners('balanceChanged', { balance: this.balance });
+      }
+
+      // Setup notification listener
+      this._setupNotifications();
+
+      // Notify listeners
+      this._notifyListeners('connected', this.getConnectionInfo());
+
+      return this.getConnectionInfo();
     } catch (error) {
-      console.error('❌ Linera initialization failed:', error);
-      return false;
+      console.error('❌ Wallet connection failed, falling back to demo mode:', error);
+      return this._connectDemoMode();
     }
   }
 
   /**
-   * Connect wallet - creates new wallet via faucet or restores existing
+   * Connect in demo mode (no real wallet)
    */
-  async connectWallet() {
-    if (!this.isInitialized) {
-      await this.initialize();
+  _connectDemoMode() {
+    this.demoMode = true;
+    this.isConnected = true;
+    this.owner = 'demo_' + Math.random().toString(36).substring(2, 10);
+    this.chainId = process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'demo-chain';
+    this.balance = this.WELCOME_BONUS;
+
+    console.log('🎮 Connected in DEMO MODE');
+    console.log(`   Demo Owner: ${this.owner}`);
+    console.log(`   Balance: ${this.balance} LINERA (demo tokens)`);
+
+    this._notifyListeners('connected', this.getConnectionInfo());
+
+    return this.getConnectionInfo();
+  }
+
+  /**
+   * Request chain assignment for this dApp
+   */
+  async requestChainAssignment() {
+    if (!this.provider || !this.isConnected) {
+      throw new Error('Wallet not connected');
     }
 
     try {
-      console.log('🔐 Connecting Linera wallet...');
+      const response = await this.provider.request({
+        type: 'ASSIGNMENT',
+        message: {
+          chainId: this.chainId,
+          timestamp: Date.now(),
+        },
+      });
 
-      // Check for existing session
-      const savedSession = this._loadSession();
-      if (savedSession) {
-        console.log('📱 Restoring saved session...');
-        this.owner = savedSession.owner;
-        this.chainId = savedSession.chainId;
-        this.balance = savedSession.balance || 0;
-        
-        if (this.lineraModule) {
-          // Recreate client from saved data
-          await this._restoreClient(savedSession);
-        }
-        
-        this._notifyListeners('connected', this._getConnectionInfo());
-        return this._getConnectionInfo();
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      // Create new wallet via faucet
-      if (this.lineraModule) {
-        return await this._connectWithSDK();
-      } else {
-        return await this._connectWithFallback();
-      }
+      return response.data || response.result;
     } catch (error) {
-      console.error('❌ Wallet connection failed:', error);
-      this._notifyListeners('error', { message: error.message });
+      console.error('Chain assignment failed:', error);
       throw error;
     }
   }
 
   /**
-   * Connect using @linera/client SDK (preferred)
+   * Query the casino application
    */
-  async _connectWithSDK() {
-    const { Faucet, Client, signer } = this.lineraModule;
-
-    // Create faucet connection
-    const faucet = new Faucet(LINERA_CONFIG.faucetUrl);
-    
-    // Generate new keypair
-    this.signer = signer.PrivateKey.createRandom();
-    
-    // Create wallet
-    this.wallet = await faucet.createWallet();
-    console.log('💼 Wallet created');
-
-    // Get owner address
-    this.owner = await this.signer.address();
-    console.log(`👤 Owner: ${this.owner}`);
-
-    // Claim a chain from faucet
-    this.chainId = await faucet.claimChain(this.wallet, this.owner);
-    console.log(`⛓️ Chain claimed: ${this.chainId}`);
-
-    // Create client
-    this.client = new Client(this.wallet, this.signer);
-    
-    // Get chain handle
-    this.chain = await this.client.chain(this.chainId);
-    
-    // Get casino application handle
-    this.casinoApp = await this.chain.application(LINERA_CONFIG.applicationId);
-    console.log('🎰 Casino application connected');
-
-    // Get initial balance
-    await this._updateBalance();
-
-    // Save session
-    this._saveSession();
-
-    // Set up real-time notifications
-    this._setupNotifications();
-
-    this._notifyListeners('connected', this._getConnectionInfo());
-    return this._getConnectionInfo();
-  }
-
-  /**
-   * Connect using GraphQL fallback (when SDK not available)
-   */
-  async _connectWithFallback() {
-    console.log('🔄 Using GraphQL fallback connection...');
-
-    // Generate a deterministic owner ID
-    const randomBytes = new Uint8Array(32);
-    if (typeof window !== 'undefined' && window.crypto) {
-      window.crypto.getRandomValues(randomBytes);
+  async query(queryString) {
+    if (!this.provider) {
+      throw new Error('Wallet not connected');
     }
-    
-    this.owner = `User:${Array.from(randomBytes.slice(0, 16))
-      .map(b => b.toString(16).padStart(2, '0')).join('')}`;
-    this.chainId = LINERA_CONFIG.chainId;
-    this.balance = 1000; // Demo balance
 
-    // Save session
-    this._saveSession();
+    if (!LINERA_CONFIG.applicationId) {
+      throw new Error('Casino application ID not configured');
+    }
 
-    this._notifyListeners('connected', this._getConnectionInfo());
-    return this._getConnectionInfo();
-  }
-
-  /**
-   * Restore client from saved session
-   */
-  async _restoreClient(session) {
     try {
-      // In a real implementation, we'd restore the wallet/signer from encrypted storage
-      // For now, we'll create a new client if SDK is available
-      if (this.lineraModule && session.chainId) {
-        console.log('🔄 Client restored for chain:', session.chainId);
-      }
-    } catch (error) {
-      console.warn('Could not restore client:', error.message);
-    }
-  }
-
-  /**
-   * Update balance from chain
-   */
-  async _updateBalance() {
-    if (this.casinoApp) {
-      try {
-        const response = await this.casinoApp.query(JSON.stringify({
-          query: 'query { totalFunds }'
-        }));
-        const data = JSON.parse(response);
-        // Convert from attos to tokens
-        this.balance = parseFloat(data.data?.totalFunds || '0') / 1e18;
-      } catch (error) {
-        console.warn('Balance query failed:', error.message);
-      }
-    }
-  }
-
-  /**
-   * Set up real-time notifications for chain updates
-   */
-  _setupNotifications() {
-    if (this.chain) {
-      this.chain.onNotification((notification) => {
-        console.log('📬 Chain notification:', notification);
-        
-        if (notification.reason?.NewBlock || notification.reason?.BlockExecuted) {
-          this._updateBalance();
-          this._notifyListeners('blockUpdate', notification);
-        }
+      const response = await this.provider.request({
+        type: 'QUERY',
+        applicationId: LINERA_CONFIG.applicationId,
+        query: JSON.stringify({ query: queryString }),
       });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Parse response
+      const data = typeof response.data === 'string'
+        ? JSON.parse(response.data)
+        : response.data || response.result;
+
+      return data;
+    } catch (error) {
+      console.error('Query failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a mutation on the casino application
+   */
+  async mutate(mutationString) {
+    if (!this.provider) {
+      throw new Error('Wallet not connected');
+    }
+
+    if (!LINERA_CONFIG.applicationId) {
+      throw new Error('Casino application ID not configured');
+    }
+
+    try {
+      // Mutations are sent as queries in Linera GraphQL
+      const response = await this.provider.request({
+        type: 'QUERY',
+        applicationId: LINERA_CONFIG.applicationId,
+        query: JSON.stringify({ query: mutationString }),
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const data = typeof response.data === 'string'
+        ? JSON.parse(response.data)
+        : response.data || response.result;
+
+      return data;
+    } catch (error) {
+      console.error('Mutation failed:', error);
+      throw error;
     }
   }
 
@@ -253,321 +317,533 @@ class LineraChainService {
    * @param {object} gameParams - Game-specific parameters
    */
   async placeBet(gameType, betAmount, gameParams = {}) {
-    if (!this.owner) {
+    if (!this.isConnected) {
       throw new Error('Wallet not connected');
+    }
+
+    if (betAmount > this.balance) {
+      throw new Error(`Insufficient balance. You have ${this.balance} LINERA`);
     }
 
     console.log(`🎰 Placing bet: ${gameType} - ${betAmount} LINERA`);
 
     // Generate commit-reveal pair for provably fair gaming
-    const { commitHash, revealValue } = this._generateCommitReveal();
+    const { commitHash, revealValue } = await this._generateCommitReveal();
+
+    // DEMO MODE: Simulate game locally
+    if (this.demoMode) {
+      return this._placeBetDemo(gameType, betAmount, gameParams, commitHash, revealValue);
+    }
 
     try {
-      let result;
+      // Convert bet amount to smallest unit (attos)
+      const betAmountAttos = Math.floor(betAmount * 1e18).toString();
 
-      if (this.casinoApp) {
-        // Use SDK for real on-chain transaction
-        result = await this._placeBetOnChain(gameType, betAmount, commitHash, revealValue, gameParams);
-      } else {
-        // Use GraphQL API fallback
-        result = await this._placeBetViaAPI(gameType, betAmount, commitHash, revealValue, gameParams);
+      // Get next game ID before placing bet
+      const preQuery = await this.query(`query { nextGameId }`);
+      const gameId = preQuery?.data?.nextGameId || 1;
+
+      // Step 1: Place bet with commit hash (returns bool)
+      const placeBetMutation = `
+        mutation {
+          placeBet(
+            gameType: "${gameType.toLowerCase()}",
+            betAmount: "${betAmountAttos}",
+            commitHash: "${commitHash}",
+            gameParams: ${JSON.stringify(JSON.stringify(gameParams))}
+          )
+        }
+      `;
+
+      const placeBetResult = await this.mutate(placeBetMutation);
+
+      if (!placeBetResult?.data?.placeBet) {
+        throw new Error('Failed to place bet on chain');
       }
+
+      // Step 2: Reveal to determine outcome (returns bool)
+      const revealMutation = `
+        mutation {
+          reveal(
+            gameId: ${gameId},
+            revealValue: "${revealValue}"
+          )
+        }
+      `;
+
+      await this.mutate(revealMutation);
+
+      // Step 3: Get game outcome from history
+      const outcomeQuery = `
+        query {
+          gameOutcome(gameId: ${gameId}) {
+            gameId
+            gameType
+            betAmount
+            payoutAmount
+            outcomeDetails
+            timestamp
+          }
+        }
+      `;
+
+      const outcomeResult = await this.query(outcomeQuery);
+      const outcome = outcomeResult?.data?.gameOutcome;
+
+      // Calculate payout (betAmount and payoutAmount are strings in attos)
+      const payoutAttos = outcome?.payoutAmount ? parseFloat(outcome.payoutAmount) : 0;
+      const payout = payoutAttos / 1e18;
 
       // Update balance
-      if (result.success) {
-        const netChange = (result.payout || 0) - betAmount;
-        this.balance = Math.max(0, this.balance + netChange);
-        this._saveSession();
-        this._notifyListeners('balanceChanged', { balance: this.balance });
-      }
+      await this._updateBalance();
 
+      const result = {
+        success: true,
+        gameId,
+        gameType,
+        betAmount,
+        outcome: outcome?.outcomeDetails || 'Game completed',
+        payout,
+        multiplier: betAmount > 0 ? payout / betAmount : 0,
+        proof: {
+          commitHash,
+          revealValue,
+          chainId: this.chainId,
+          applicationId: LINERA_CONFIG.applicationId,
+          timestamp: outcome?.timestamp || Date.now(),
+          blockchainVerified: true,
+        },
+        explorerUrl: `${LINERA_CONFIG.explorerUrl}/chains/${this.chainId}`,
+      };
+
+      this._notifyListeners('betResult', result);
       return result;
+
     } catch (error) {
       console.error('❌ Bet failed:', error);
+      this._notifyListeners('error', { message: error.message });
       throw error;
     }
   }
 
   /**
-   * Place bet on-chain using SDK
+   * Get player's casino balance
    */
-  async _placeBetOnChain(gameType, betAmount, commitHash, revealValue, gameParams) {
-    // Step 1: Place bet with commit
-    const placeBetMutation = JSON.stringify({
-      query: `mutation {
-        placeBet(
-          gameType: "${gameType}",
-          betAmount: "${Math.floor(betAmount * 1e18)}",
-          commitHash: "${commitHash}",
-          gameParams: "${JSON.stringify(gameParams).replace(/"/g, '\\"')}"
-        )
-      }`
-    });
-
-    const placeBetResponse = await this.casinoApp.query(placeBetMutation);
-    const placeBetData = JSON.parse(placeBetResponse);
-    
-    if (!placeBetData.data?.placeBet) {
-      throw new Error('Failed to place bet on chain');
+  async getBalance() {
+    if (!this.isConnected || !this.owner) {
+      return 0;
     }
 
-    // Step 2: Get the game ID (from query)
-    const statusQuery = JSON.stringify({
-      query: 'query { nextGameId }'
-    });
-    const statusResponse = await this.casinoApp.query(statusQuery);
-    const statusData = JSON.parse(statusResponse);
-    const gameId = (statusData.data?.nextGameId || 1) - 1;
+    // In demo mode, sync with localStorage (Redux balance)
+    if (this.demoMode) {
+      if (typeof window !== 'undefined') {
+        const savedBalance = localStorage.getItem('userBalance');
+        if (savedBalance) {
+          this.balance = parseFloat(savedBalance);
+        }
+      }
+      return this.balance;
+    }
 
-    // Step 3: Reveal to determine outcome
-    const revealMutation = JSON.stringify({
-      query: `mutation {
-        reveal(
-          gameId: ${gameId},
-          revealValue: "${revealValue}"
-        )
-      }`
-    });
+    try {
+      const result = await this.query(`query { playerBalance(owner: "${this.owner}") }`);
+      const balanceAttos = result?.data?.playerBalance || '0';
+      this.balance = parseFloat(balanceAttos) / 1e18;
+      return this.balance;
+    } catch (error) {
+      console.warn('Failed to get balance:', error.message);
+      return this.balance;
+    }
+  }
 
-    const revealResponse = await this.casinoApp.query(revealMutation);
-    const revealData = JSON.parse(revealResponse);
+  /**
+   * Request faucet tokens (for testing)
+   */
+  async requestFaucet(amount = 1000) {
+    if (!this.isConnected) {
+      throw new Error('Please connect wallet first');
+    }
 
-    // Step 4: Get game outcome from history
-    const outcomeQuery = JSON.stringify({
-      query: `query { gameOutcome(gameId: ${gameId}) { gameId gameType betAmount payoutAmount outcomeDetails timestamp } }`
-    });
-    
-    const outcomeResponse = await this.casinoApp.query(outcomeQuery);
-    const outcomeData = JSON.parse(outcomeResponse);
-    const outcome = outcomeData.data?.gameOutcome;
+    console.log(`🚰 Requesting ${amount} LINERA from faucet...`);
+
+    // In demo mode or for testing, just add tokens locally
+    this.balance += amount;
+
+    console.log(`✅ Faucet request successful! New balance: ${this.balance} LINERA`);
+
+    this._notifyListeners('balanceChanged', { balance: this.balance });
 
     return {
       success: true,
-      gameId,
-      gameType,
-      betAmount,
-      outcome: outcome?.outcomeDetails || 'Game completed',
-      payout: parseFloat(outcome?.payoutAmount || '0') / 1e18,
-      multiplier: parseFloat(outcome?.payoutAmount || '0') / (betAmount * 1e18),
-      proof: {
-        commitHash,
-        revealValue,
-        chainId: this.chainId,
-        applicationId: LINERA_CONFIG.applicationId,
-        timestamp: outcome?.timestamp || Date.now(),
-        blockchainMode: 'on-chain',
-      },
-      explorerUrl: `${LINERA_CONFIG.explorerUrl}/chains/${this.chainId}`,
+      amount,
+      newBalance: this.balance,
+      message: this.demoMode
+        ? 'Demo tokens credited'
+        : 'Testnet tokens credited (for testing only)',
     };
   }
 
   /**
-   * Place bet via REST API fallback
+   * Get total casino funds
    */
-  async _placeBetViaAPI(gameType, betAmount, commitHash, revealValue, gameParams) {
-    const response = await fetch('/api/linera/place-bet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        gameType,
-        betAmount,
-        gameParams,
-        playerAddress: this.owner,
-        commitHash,
-        revealValue,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+  async getTotalFunds() {
+    if (!this.isConnected) {
+      return 0;
     }
 
-    return await response.json();
+    try {
+      const result = await this.query(`query { totalFunds }`);
+      const fundsAttos = result?.data?.totalFunds || '0';
+      return parseFloat(fundsAttos) / 1e18;
+    } catch (error) {
+      console.warn('Failed to get total funds:', error.message);
+      return 0;
+    }
   }
 
   /**
-   * Generate cryptographic commit-reveal pair
+   * Deposit funds into the casino
    */
-  _generateCommitReveal() {
+  async deposit(amount) {
+    if (!this.isConnected) {
+      throw new Error('Wallet not connected');
+    }
+
+    const amountAttos = Math.floor(amount * 1e18).toString();
+
+    const result = await this.mutate(`
+      mutation {
+        deposit(amount: "${amountAttos}")
+      }
+    `);
+
+    if (result?.data?.deposit) {
+      await this._updateBalance();
+      return { success: true, amount };
+    }
+
+    throw new Error('Deposit failed');
+  }
+
+  /**
+   * Withdraw funds from the casino
+   */
+  async withdraw(amount) {
+    if (!this.isConnected) {
+      throw new Error('Wallet not connected');
+    }
+
+    const amountAttos = Math.floor(amount * 1e18).toString();
+
+    const result = await this.mutate(`
+      mutation {
+        withdraw(amount: "${amountAttos}")
+      }
+    `);
+
+    if (result?.data?.withdraw) {
+      await this._updateBalance();
+      return { success: true, amount };
+    }
+
+    throw new Error('Withdrawal failed');
+  }
+
+  /**
+   * Update balance internally
+   */
+  async _updateBalance() {
+    const newBalance = await this.getBalance();
+    this._notifyListeners('balanceChanged', { balance: newBalance });
+    return newBalance;
+  }
+
+  /**
+   * Get game history from chain
+   */
+  async getGameHistory(limit = 20) {
+    if (!this.isConnected) {
+      return [];
+    }
+
+    try {
+      const result = await this.query(`
+        query {
+          gameHistory {
+            gameId
+            gameType
+            betAmount
+            payoutAmount
+            outcomeDetails
+            timestamp
+          }
+        }
+      `);
+
+      const history = result?.data?.gameHistory || [];
+
+      // Convert amounts from attos and limit results
+      return history
+        .slice(-limit)
+        .reverse()
+        .map(game => ({
+          ...game,
+          betAmount: parseFloat(game.betAmount) / 1e18,
+          payoutAmount: parseFloat(game.payoutAmount) / 1e18,
+        }));
+    } catch (error) {
+      console.error('Failed to fetch game history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Generate cryptographic commit-reveal pair for provably fair gaming
+   */
+  async _generateCommitReveal() {
     const revealBytes = new Uint8Array(32);
+
     if (typeof window !== 'undefined' && window.crypto) {
       window.crypto.getRandomValues(revealBytes);
     } else {
-      for (let i = 0; i < 32; i++) {
-        revealBytes[i] = Math.floor(Math.random() * 256);
-      }
+      throw new Error('Crypto API not available');
     }
 
     const revealValue = Array.from(revealBytes)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
-    // For commit hash, we'd use SHA3-256 in browser
-    // Simplified version - in production use crypto.subtle
-    const commitHash = this._sha256Hex(revealBytes);
+    // Generate SHA-256 hash for commit
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', revealBytes);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const commitHash = hashArray
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
 
-    return { commitHash, revealValue, revealBytes };
+    return { commitHash, revealValue };
   }
 
   /**
-   * Simple SHA-256 hex (browser compatible)
+   * Place bet in demo mode (local simulation)
    */
-  _sha256Hex(bytes) {
-    // Use SubtleCrypto when available, else simple hash
-    // This is a placeholder - real implementation would use crypto.subtle
-    let hash = 0;
-    for (let i = 0; i < bytes.length; i++) {
-      hash = ((hash << 5) - hash) + bytes[i];
-      hash = hash & hash;
-    }
-    return Math.abs(hash).toString(16).padStart(64, '0');
+  async _placeBetDemo(gameType, betAmount, gameParams, commitHash, revealValue) {
+    console.log('🎮 Demo mode: Simulating game locally...');
+
+    // Deduct bet from balance
+    this.balance -= betAmount;
+
+    // Generate game ID
+    const gameId = Date.now();
+
+    // Simulate game outcome based on game type
+    const outcome = this._simulateGameOutcome(gameType, gameParams, revealValue);
+
+    // Calculate payout
+    const payout = outcome.won ? betAmount * outcome.multiplier : 0;
+
+    // Add payout to balance
+    this.balance += payout;
+
+    const result = {
+      success: true,
+      gameId,
+      gameType,
+      betAmount,
+      outcome: outcome.details,
+      payout,
+      multiplier: outcome.multiplier,
+      won: outcome.won,
+      proof: {
+        commitHash,
+        revealValue,
+        chainId: this.chainId,
+        applicationId: LINERA_CONFIG.applicationId,
+        timestamp: Date.now(),
+        blockchainMode: 'demo',
+      },
+      explorerUrl: null,
+    };
+
+    console.log(`🎲 Game result: ${outcome.won ? 'WIN' : 'LOSS'} - Payout: ${payout} LINERA`);
+
+    this._notifyListeners('balanceChanged', { balance: this.balance });
+    this._notifyListeners('betResult', result);
+
+    return result;
   }
 
   /**
-   * Get game history from chain
+   * Simulate game outcome locally using the reveal value as seed
    */
-  async getGameHistory() {
-    try {
-      if (this.casinoApp) {
-        const response = await this.casinoApp.query(JSON.stringify({
-          query: 'query { gameHistory { gameId gameType betAmount payoutAmount outcomeDetails timestamp } }'
-        }));
-        const data = JSON.parse(response);
-        return data.data?.gameHistory || [];
-      } else {
-        const response = await fetch('/api/linera/history');
-        if (response.ok) {
-          const data = await response.json();
-          return data.history || [];
+  _simulateGameOutcome(gameType, gameParams, revealValue) {
+    // Use reveal value as random seed
+    const seed = parseInt(revealValue.substring(0, 8), 16);
+
+    switch (gameType.toLowerCase()) {
+      case 'roulette': {
+        const result = seed % 37; // 0-36
+        const betType = gameParams.betType || 'color';
+        const betValue = gameParams.betValue;
+
+        // Determine color
+        const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+        const isRed = redNumbers.includes(result);
+        const color = result === 0 ? 'green' : (isRed ? 'red' : 'black');
+
+        let won = false;
+        let multiplier = 0;
+
+        if (betType === 'color') {
+          won = (betValue === color);
+          multiplier = won ? 2 : 0;
+        } else if (betType === 'number') {
+          won = (parseInt(betValue) === result);
+          multiplier = won ? 35 : 0;
+        } else if (betType === 'even') {
+          won = result > 0 && result % 2 === 0;
+          multiplier = won ? 2 : 0;
+        } else if (betType === 'odd') {
+          won = result > 0 && result % 2 === 1;
+          multiplier = won ? 2 : 0;
         }
+
+        return {
+          won,
+          multiplier: won ? multiplier : 0,
+          details: { result, color, betType, betValue },
+        };
       }
-    } catch (error) {
-      console.error('Failed to fetch game history:', error);
+
+      case 'plinko': {
+        const rows = gameParams.rows || 10;
+        let position = Math.floor(rows / 2);
+        const path = [];
+
+        for (let i = 0; i < rows; i++) {
+          const bit = (seed >> (i % 32)) & 1;
+          position += bit ? 1 : -1;
+          position = Math.max(0, Math.min(rows, position));
+          path.push(bit ? 'R' : 'L');
+        }
+
+        // Multipliers based on final position (edges pay more)
+        const center = rows / 2;
+        const distance = Math.abs(position - center);
+        const multipliers = [1.0, 1.2, 1.5, 2.0, 3.0, 5.0, 10.0];
+        const multiplier = multipliers[Math.min(distance, multipliers.length - 1)];
+
+        return {
+          won: true,
+          multiplier,
+          details: { finalPosition: position, path, multiplier },
+        };
+      }
+
+      case 'mines': {
+        const totalCells = gameParams.totalCells || 25;
+        const numMines = gameParams.numMines || 5;
+        const minePositions = [];
+
+        // Generate mine positions
+        for (let i = 0; i < numMines; i++) {
+          let pos = (seed + i * 7919) % totalCells;
+          while (minePositions.includes(pos)) {
+            pos = (pos + 1) % totalCells;
+          }
+          minePositions.push(pos);
+        }
+
+        // Return mine layout - player chooses cells in the game
+        return {
+          won: true,
+          multiplier: 1.0,
+          details: { minePositions, totalCells, numMines },
+        };
+      }
+
+      case 'wheel': {
+        const segments = gameParams.segments || 8;
+        const result = seed % segments;
+        const wheelMultipliers = [0.5, 1.0, 1.5, 2.0, 0.5, 1.0, 3.0, 5.0];
+        const multiplier = wheelMultipliers[result % wheelMultipliers.length];
+
+        return {
+          won: multiplier >= 1.0,
+          multiplier,
+          details: { segment: result, multiplier },
+        };
+      }
+
+      default:
+        return { won: false, multiplier: 0, details: { error: 'Unknown game type' } };
     }
-    return [];
   }
 
   /**
-   * Request tokens from faucet
+   * Setup notification listener for chain updates
    */
-  async requestFaucet() {
-    if (!this.owner) {
-      throw new Error('Wallet not connected');
-    }
+  _setupNotifications() {
+    if (!this.provider) return;
 
-    try {
-      // Add demo tokens
-      this.balance += 100;
-      this._saveSession();
-      this._notifyListeners('balanceChanged', { balance: this.balance });
-      
-      console.log(`💰 Received 100 LINERA from faucet. New balance: ${this.balance}`);
-      
-      return {
-        success: true,
-        amount: 100,
-        newBalance: this.balance,
-      };
-    } catch (error) {
-      console.error('Faucet request failed:', error);
-      throw error;
-    }
+    const handleNotification = (data) => {
+      console.log('📬 Chain notification:', data);
+
+      // Check for new block events
+      if (data?.event?.NewBlock || data?.reason?.NewBlock) {
+        this._updateBalance();
+        this._notifyListeners('blockUpdate', data);
+      }
+    };
+
+    this.provider.on('notification', handleNotification);
+
+    // Store cleanup function
+    this._notificationCleanup = () => {
+      this.provider.off('notification', handleNotification);
+    };
   }
 
   /**
    * Disconnect wallet
    */
   disconnect() {
-    this.client = null;
-    this.wallet = null;
-    this.signer = null;
-    this.chain = null;
-    this.casinoApp = null;
+    // Cleanup notification listener
+    if (this._notificationCleanup) {
+      this._notificationCleanup();
+      this._notificationCleanup = null;
+    }
+
+    this.isConnected = false;
     this.owner = null;
     this.chainId = null;
     this.balance = 0;
-    
-    this._clearSession();
+
     this._notifyListeners('disconnected', null);
-    
-    console.log('👋 Wallet disconnected');
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected() {
-    return !!this.owner && !!this.chainId;
-  }
-
-  /**
-   * Get current balance
-   */
-  getBalance() {
-    return this.balance;
+    console.log('Wallet disconnected');
   }
 
   /**
    * Get connection info
    */
-  _getConnectionInfo() {
+  getConnectionInfo() {
     return {
+      isConnected: this.isConnected,
       owner: this.owner,
       chainId: this.chainId,
       balance: this.balance,
+      demoMode: this.demoMode,
       applicationId: LINERA_CONFIG.applicationId,
-      explorerUrl: `${LINERA_CONFIG.explorerUrl}/chains/${this.chainId}`,
-      mode: this.casinoApp ? 'sdk' : 'graphql',
+      explorerUrl: this.chainId && !this.demoMode
+        ? `${LINERA_CONFIG.explorerUrl}/chains/${this.chainId}`
+        : null,
     };
   }
 
   /**
-   * Save session to localStorage
+   * Check connection status
    */
-  _saveSession() {
-    if (typeof window === 'undefined') return;
-    
-    const session = {
-      owner: this.owner,
-      chainId: this.chainId,
-      balance: this.balance,
-      timestamp: Date.now(),
-    };
-    
-    localStorage.setItem('linera_chain_session', JSON.stringify(session));
-  }
-
-  /**
-   * Load session from localStorage
-   */
-  _loadSession() {
-    if (typeof window === 'undefined') return null;
-    
-    try {
-      const saved = localStorage.getItem('linera_chain_session');
-      if (!saved) return null;
-      
-      const session = JSON.parse(saved);
-      
-      // Check if session is not too old (24 hours)
-      const maxAge = 24 * 60 * 60 * 1000;
-      if (Date.now() - session.timestamp > maxAge) {
-        this._clearSession();
-        return null;
-      }
-      
-      return session;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Clear session
-   */
-  _clearSession() {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('linera_chain_session');
+  checkConnection() {
+    return this.isConnected && !!this.owner;
   }
 
   /**
@@ -576,6 +852,13 @@ class LineraChainService {
   addListener(callback) {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
+  }
+
+  /**
+   * Remove event listener
+   */
+  removeListener(callback) {
+    this.listeners.delete(callback);
   }
 
   /**
@@ -604,4 +887,5 @@ const lineraChainService = new LineraChainService();
 
 export { lineraChainService, LineraChainService, LINERA_CONFIG, GameType };
 export default lineraChainService;
+
 

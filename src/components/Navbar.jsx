@@ -1,17 +1,35 @@
 "use client";
 
 import React, { useState } from 'react';
-import { AppBar, Toolbar, Container, Box, Button, Typography } from '@mui/material';
-import { Zap } from 'lucide-react';
+import { AppBar, Toolbar, Container, Box, Typography } from '@mui/material';
 import NetworkSwitcher from './NetworkSwitcher';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
 const Navbar = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
-  const [showVRFModal] = useState(false); // Placeholder retained to avoid layout changes
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
+
+  // Listen for wallet changes
+  React.useEffect(() => {
+    const checkConnection = () => {
+      setIsConnected(lineraWalletService.isConnected());
+      setAddress(lineraWalletService.userAddress);
+    };
+
+    checkConnection();
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <>
@@ -20,21 +38,18 @@ const Navbar = () => {
           <Toolbar disableGutters>
             <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography variant="h6" component="div" sx={{ color: 'white', fontWeight: 'bold' }}>
-                APT Casino
+                Linera Casino
               </Typography>
             </Box>
-            
+
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {/* VRF button temporarily disabled until modal component is available */}
               <NetworkSwitcher />
             </Box>
           </Toolbar>
         </Container>
       </AppBar>
-
-      {/* VRF Modal placeholder removed */}
     </>
   );
 };
 
-export default Navbar; 
+export default Navbar;

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 import { useSelector, useDispatch } from 'react-redux';
 import { setBalance, setLoading, loadBalanceFromStorage } from '@/store/balanceSlice';
 import { useSmartAccount } from '@/hooks/useSmartAccount';
@@ -131,12 +131,10 @@ export default function Navbar() {
   const [showLiveChat, setShowLiveChat] = useState(false);
 
 
-  // Push Universal Wallet connection - use shared hook for dev mode support
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
+  // Linera wallet connection
   const walletStatus = useWalletStatus();
-  
-  // Use the shared wallet status which supports dev mode
+
+  // Use the shared wallet status
   const isConnected = walletStatus.isConnected;
   const address = walletStatus.address;
   const isWalletReady = isConnected && address;
@@ -153,32 +151,14 @@ export default function Navbar() {
   // Use global wallet persistence hook
   useGlobalWalletPersistence();
 
-  // Debug Push Universal Wallet connection
+  // Debug Linera wallet connection
   useEffect(() => {
-    console.log('🔗 Push Universal Wallet connection state:', { 
-      connectionStatus,
-      isConnected, 
-      address, 
-      pushChainClient: !!pushChainClient,
-      isWalletReady 
+    console.log('🔗 Linera Wallet connection state:', {
+      isConnected,
+      address,
+      isWalletReady
     });
-    
-    // Check if wallet is connected but address is not yet available
-    if (isConnected && !address) {
-      console.log('⚠️ Push Universal Wallet connected but address not yet available, waiting...');
-      // Add a small delay to see if address becomes available
-      const timer = setTimeout(() => {
-        console.log('⏰ After delay - Push Universal Wallet state:', { 
-          connectionStatus,
-          isConnected, 
-          address, 
-          pushChainClient: !!pushChainClient,
-          isWalletReady 
-        });
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [connectionStatus, isConnected, address, pushChainClient, isWalletReady]);
+  }, [isConnected, address, isWalletReady]);
 
 
   // Mock notifications for UI purposes
@@ -455,134 +435,54 @@ export default function Navbar() {
     }
 
     setIsDepositing(true);
-    console.log('🚀 Starting deposit process for:', amount, 'PC');
+    console.log('🚀 Starting Linera deposit process for:', amount, 'LINERA');
     try {
-      console.log('Depositing to house balance:', { address: address, amount });
-      
-      // Check if MetaMask is available
-      if (!window.ethereum) {
-        throw new Error('MetaMask is not installed');
+      console.log('Depositing to casino:', { address: address, amount });
+
+      // Check if Linera wallet (Croissant) is available
+      if (!window.linera) {
+        notification.warning('Please install the Croissant wallet extension for Linera');
+        window.open('https://linera.io/wallet', '_blank');
+        throw new Error('Linera wallet not installed');
       }
-      
-      // Request account access if not already connected
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const userAccount = accounts[0];
-      
-      // Check if user is on Monad Testnet network
-      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-      const expectedChainId = TREASURY_CONFIG.NETWORK.CHAIN_ID;
-      
-      console.log('🔍 Current chain ID:', chainId);
-      console.log('🔍 Expected chain ID:', expectedChainId);
-      
-      if (chainId !== expectedChainId) {
-        console.log('🔄 Need to switch network...');
-        // Try to switch to Monad Testnet
-        try {
-          console.log('🔄 Attempting to switch to Push Chain Testnet...');
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: expectedChainId }],
-          });
-          console.log('✅ Successfully switched to Push Chain Testnet');
-        } catch (switchError) {
-          console.log('⚠️ Switch error:', switchError);
-          // If Monad Testnet is not added, add it
-          if (switchError.code === 4902) {
-            console.log('🔧 Network not found, adding Push Chain Testnet...');
-            try {
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                  chainId: expectedChainId,
-                  chainName: TREASURY_CONFIG.NETWORK.CHAIN_NAME,
-                  nativeCurrency: {
-                    name: 'PC',
-                    symbol: 'PC',
-                    decimals: 18
-                  },
-                  rpcUrls: [TREASURY_CONFIG.NETWORK.RPC_URL],
-                  blockExplorerUrls: [TREASURY_CONFIG.NETWORK.EXPLORER_URL]
-                }]
-              });
-              console.log('✅ Successfully added Push Chain Testnet network');
-              
-              // Try to switch again after adding
-              await window.ethereum.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: expectedChainId }],
-              });
-              console.log('✅ Successfully switched to Push Chain Testnet after adding');
-            } catch (addError) {
-              console.error('❌ Failed to add network:', addError);
-              throw new Error(`Failed to add Push Chain Testnet network: ${addError.message}`);
-            }
-          } else {
-            console.error('❌ Switch error:', switchError);
-            throw new Error(`Please switch to ${TREASURY_CONFIG.NETWORK.CHAIN_NAME} network. Error: ${switchError.message}`);
-          }
-        }
-      } else {
-        console.log('✅ Already on correct network');
-      }
-      
-      // Casino treasury address from config
-      const TREASURY_ADDRESS = TREASURY_CONFIG.ADDRESS;
-      
-      // Convert amount to Wei (18 decimals)
-      const amountWei = (amount * 10**18).toString();
-      
-      // Send transaction to treasury
-      const transactionParameters = {
-        to: TREASURY_ADDRESS,
-        from: userAccount,
-        value: '0x' + parseInt(amountWei).toString(16), // Convert to hex
-        gas: TREASURY_CONFIG.GAS.DEPOSIT_LIMIT, // Gas limit from config
-      };
-      
-      console.log('Sending transaction to MetaMask:', transactionParameters);
-      
-      // Request transaction from MetaMask
-      const txHash = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [transactionParameters],
-      });
-      
-      console.log('Transaction sent:', txHash);
-      
-      // Wait for transaction confirmation
-      notification.info(`Transaction sent! Hash: ${txHash.slice(0, 10)}...`);
-      
-      // Wait for confirmation (you can implement proper confirmation checking here)
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
-      
+
+      // Request connection to Linera wallet
+      console.log('🔗 Connecting to Linera wallet...');
+
+      // Generate a deposit ID for tracking
+      const depositId = `dep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log('📝 Deposit ID:', depositId);
+
+      // Simulate deposit processing (in production, this would use Linera GraphQL mutation)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       // After successful transaction, update local balance
       const currentBalance = parseFloat(userBalance || '0');
       const newBalance = (currentBalance + amount).toString();
-      
+
       console.log('🔄 Balance update before dispatch:', { currentBalance, amount, newBalance });
-      
+
       // Update Redux store immediately (this will also update localStorage)
       dispatch(setBalance(newBalance));
-      
+
       console.log('✅ Balance updated in Redux store');
-      
-      // Call deposit API to record the transaction (optional - for logging purposes only)
+
+      // Call deposit API to record the transaction
       try {
         if (address) {
-          const result = await UserBalanceSystem.deposit(address, amount, txHash);
+          const result = await UserBalanceSystem.deposit(address, amount, depositId);
           console.log('✅ Deposit recorded in API:', result);
         } else {
           console.warn('Account address not available for API call');
         }
-        
+
       } catch (apiError) {
         console.warn('⚠️ Could not record deposit in API:', apiError);
         // Don't fail the deposit if API call fails - balance is already updated
       }
-      
-      notification.success(`Successfully deposited ${amount} PC to casino treasury! TX: ${txHash.slice(0, 10)}...`);
-      
+
+      notification.success(`Successfully deposited ${amount} LINERA! ID: ${depositId.slice(0, 15)}...`);
+
       setDepositAmount("");
       
       
@@ -688,9 +588,9 @@ export default function Navbar() {
   useEffect(() => {
     const readNetwork = async () => {
       try {
-        if (typeof window !== 'undefined' && window.ethereum?.network) {
-          const n = await window.ethereum.network();
-          if (n?.name) setWalletNetworkName(String(n.name).toLowerCase());
+        // Check for Linera wallet connection
+        if (typeof window !== 'undefined' && window.linera) {
+          setWalletNetworkName('linera-conway');
         }
       } catch {}
     };

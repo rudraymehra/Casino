@@ -1,127 +1,71 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
-// Mock functions for demo purposes
-const arbitrumClient = {
-  getAccountResources: async ({ accountAddress }) => {
-    // Mock resources for demo
-    return [
-      {
-        type: "0x1::coin::CoinStore<0x1::arbitrum_coin::ArbitrumCoin>",
-        data: { coin: { value: "1000000000000000000" } }
-      }
-    ];
-  },
-  waitForTransaction: async ({ transactionHash }) => {
-    // Mock transaction wait for demo
-    return new Promise(resolve => setTimeout(resolve, 1000));
-  }
-};
-
+// Mock functions for demo purposes - using Linera wallet
 const CASINO_MODULE_ADDRESS = process.env.NEXT_PUBLIC_CASINO_MODULE_ADDRESS || "0x0000000000000000000000000000000000000000";
 
-const formatEthAmount = (amount) => {
-  // Mock formatting for demo
+const formatAmount = (amount) => {
   return (parseFloat(amount) / 100000000).toFixed(8);
 };
 
-const parseMON amount = (amount) => {
-  // Mock parsing for demo
+const parseAmount = (amount) => {
   return (parseFloat(amount) * 100000000).toString();
 };
 
-const CasinoGames = {
-  roulette: {
-    placeBet: (betType, betValue, amount, numbers = []) => ({
-      // Mock payload for demo
-      betType,
-      betValue,
-      amount,
-      numbers
-    }),
-    getGameState: async () => ({
-      // Mock game state for demo
-      isActive: false,
-      currentRound: 1,
-      lastResult: null
-    })
-  },
-  mines: {
-    startGame: (betAmount, minesCount, tilesToReveal) => ({
-      // Mock payload for demo
-      betAmount,
-      minesCount,
-      tilesToReveal
-    }),
-    revealTile: (gameId, tileIndex) => ({
-      // Mock payload for demo
-      gameId,
-      tileIndex
-    }),
-    cashout: (gameId) => ({
-      // Mock payload for demo
-      gameId
-    })
-  },
-  wheel: {
-    spin: (betAmount, segments) => ({
-      // Mock payload for demo
-      betAmount,
-      segments
-    })
-  }
-};
-
 export const useArbitrumCasino = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const connected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const account = pushChainClient?.universal?.account || null;
+  const [connected, setConnected] = useState(false);
+  const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Update balance when wallet connects
+  // Listen for Linera wallet changes
   useEffect(() => {
-    if (connected && account) {
-      updateBalance();
-    } else {
-      setBalance('0');
-    }
-  }, [connected, account]);
+    const checkConnection = () => {
+      const isConnected = lineraWalletService.isConnected();
+      const address = lineraWalletService.userAddress;
+      const bal = lineraWalletService.getBalance();
+      setConnected(isConnected);
+      setAccount(address);
+      setBalance(bal.toString());
+    };
 
-  const updateBalance = async () => {
+    checkConnection();
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setConnected(true);
+        setAccount(data?.address);
+        setBalance((data?.balance || 0).toString());
+      } else if (event === 'disconnected') {
+        setConnected(false);
+        setAccount(null);
+        setBalance('0');
+      } else if (event === 'balanceChanged') {
+        setBalance((data?.balance || 0).toString());
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const updateBalance = useCallback(async () => {
     if (!account) return;
-    
+
     try {
       setLoading(true);
-      const balance = await getAccountBalance(account);
-      setBalance(formatEthAmount(balance));
+      const bal = lineraWalletService.getBalance();
+      setBalance(bal.toString());
     } catch (error) {
       console.error('Error fetching balance:', error);
       setBalance('0');
     } finally {
       setLoading(false);
     }
-  };
+  }, [account]);
 
-  // Helper function to get account balance
-  const getAccountBalance = async (address) => {
-    try {
-      const resources = await arbitrumClient.getAccountResources({ accountAddress: address });
-      const ethCoinResource = resources.find(r => r.type === "0x1::coin::CoinStore<0x1::arbitrum_coin::ArbitrumCoin>");
-      if (ethCoinResource) {
-        return ethCoinResource.data.coin.value;
-      }
-      return "0";
-    } catch (error) {
-      console.error("Error getting account balance:", error);
-      return "0";
-    }
-  };
-
-  // Roulette game functions
+  // Game functions using Linera
   const placeRouletteBet = useCallback(async (betType, betValue, amount, numbers = []) => {
     if (!connected || !account) {
       throw new Error('Wallet not connected');
@@ -131,16 +75,14 @@ export const useArbitrumCasino = () => {
       setLoading(true);
       setError(null);
 
-      const payload = CasinoGames.roulette.placeBet(betType, betValue, parseMON amount(amount), numbers);
-      
-      // Mock transaction for demo
-      const mockTxHash = '0x' + Math.random().toString(16).substr(2, 64);
-      await arbitrumClient.waitForTransaction({ transactionHash: mockTxHash });
-      
-      // Update balance after transaction
+      const result = await lineraWalletService.placeBet('Roulette', parseFloat(amount), {
+        betType,
+        betValue,
+        numbers
+      });
+
       await updateBalance();
-      
-      return mockTxHash;
+      return result;
     } catch (error) {
       console.error('Roulette bet failed:', error);
       setError(error.message);
@@ -151,15 +93,13 @@ export const useArbitrumCasino = () => {
   }, [connected, account, updateBalance]);
 
   const getRouletteGameState = useCallback(async () => {
-    try {
-      return await CasinoGames.roulette.getGameState();
-    } catch (error) {
-      console.error('Error getting roulette game state:', error);
-      return null;
-    }
+    return {
+      isActive: false,
+      currentRound: 1,
+      lastResult: null
+    };
   }, []);
 
-  // Mines game functions
   const startMinesGame = useCallback(async (betAmount, minesCount, tilesToReveal) => {
     if (!connected || !account) {
       throw new Error('Wallet not connected');
@@ -169,16 +109,13 @@ export const useArbitrumCasino = () => {
       setLoading(true);
       setError(null);
 
-      const payload = CasinoGames.mines.startGame(parseMON amount(betAmount), minesCount, tilesToreveal);
-      
-      // Mock transaction for demo
-      const mockTxHash = '0x' + Math.random().toString(16).substr(2, 64);
-      await arbitrumClient.waitForTransaction({ transactionHash: mockTxHash });
-      
-      // Update balance after transaction
+      const result = await lineraWalletService.placeBet('Mines', parseFloat(betAmount), {
+        minesCount,
+        tilesToReveal
+      });
+
       await updateBalance();
-      
-      return mockTxHash;
+      return result;
     } catch (error) {
       console.error('Mines game start failed:', error);
       setError(error.message);
@@ -193,24 +130,7 @@ export const useArbitrumCasino = () => {
       throw new Error('Wallet not connected');
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const payload = CasinoGames.mines.revealTile(gameId, tileIndex);
-      
-      // Mock transaction for demo
-      const mockTxHash = '0x' + Math.random().toString(16).substr(2, 64);
-      await arbitrumClient.waitForTransaction({ transactionHash: mockTxHash });
-      
-      return mockTxHash;
-    } catch (error) {
-      console.error('Mines tile reveal failed:', error);
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    return `mock_reveal_${Date.now()}`;
   }, [connected, account]);
 
   const cashoutMinesGame = useCallback(async (gameId) => {
@@ -218,30 +138,10 @@ export const useArbitrumCasino = () => {
       throw new Error('Wallet not connected');
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const payload = CasinoGames.mines.cashout(gameId);
-      
-      // Mock transaction for demo
-      const mockTxHash = '0x' + Math.random().toString(16).substr(2, 64);
-      await arbitrumClient.waitForTransaction({ transactionHash: mockTxHash });
-      
-      // Update balance after transaction
-      await updateBalance();
-      
-      return mockTxHash;
-    } catch (error) {
-      console.error('Mines cashout failed:', error);
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    await updateBalance();
+    return `mock_cashout_${Date.now()}`;
   }, [connected, account, updateBalance]);
 
-  // Wheel game functions
   const spinWheel = useCallback(async (betAmount, segments) => {
     if (!connected || !account) {
       throw new Error('Wallet not connected');
@@ -251,16 +151,12 @@ export const useArbitrumCasino = () => {
       setLoading(true);
       setError(null);
 
-      const payload = CasinoGames.wheel.spin(parseMON amount(betAmount), segments);
-      
-      // Mock transaction for demo
-      const mockTxHash = '0x' + Math.random().toString(16).substr(2, 64);
-      await arbitrumClient.waitForTransaction({ transactionHash: mockTxHash });
-      
-      // Update balance after transaction
+      const result = await lineraWalletService.placeBet('Wheel', parseFloat(betAmount), {
+        segments
+      });
+
       await updateBalance();
-      
-      return mockTxHash;
+      return result;
     } catch (error) {
       console.error('Wheel spin failed:', error);
       setError(error.message);
@@ -270,27 +166,13 @@ export const useArbitrumCasino = () => {
     }
   }, [connected, account, updateBalance]);
 
-  // General casino functions
   const getCasinoBalance = useCallback(async () => {
-    try {
-      // Mock casino balance for demo
-      return "1000000.00";
-    } catch (error) {
-      console.error('Error getting casino balance:', error);
-      return "0";
-    }
+    return "1000000.00";
   }, []);
 
   const getGameHistory = useCallback(async (gameType, limit = 10) => {
     try {
-      // Mock game history for demo
-      return Array.from({ length: limit }, (_, i) => ({
-        id: `game_${i}`,
-        type: gameType,
-        betAmount: (Math.random() * 100).toFixed(2),
-        result: Math.random() > 0.5 ? 'win' : 'loss',
-        timestamp: new Date(Date.now() - i * 60000).toISOString()
-      }));
+      return await lineraWalletService.getGameHistory();
     } catch (error) {
       console.error('Error getting game history:', error);
       return [];
@@ -298,16 +180,11 @@ export const useArbitrumCasino = () => {
   }, []);
 
   return {
-    // State
     balance,
     loading,
     error,
-    
-    // Wallet state
     connected,
     account,
-    
-    // Functions
     updateBalance,
     placeRouletteBet,
     getRouletteGameState,
@@ -317,9 +194,7 @@ export const useArbitrumCasino = () => {
     spinWheel,
     getCasinoBalance,
     getGameHistory,
-    
-    // Utility functions
-    formatEthAmount,
-    parseMON amount,
+    formatEthAmount: formatAmount,
+    parseMonAmount: parseAmount,
   };
 };

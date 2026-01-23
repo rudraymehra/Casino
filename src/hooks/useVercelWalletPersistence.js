@@ -1,17 +1,18 @@
 "use client";
-import { useEffect, useRef } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { lineraWalletService } from '@/services/LineraWalletService';
+import { hasStoredWallet } from '@/utils/lineraWalletCrypto';
 
 /**
  * Vercel-specific Wallet Persistence Hook
  * Handles wallet persistence in Vercel's edge runtime environment
+ * Uses Linera Wallet for connection management
  */
 export const useVercelWalletPersistence = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const reconnectAttempted = useRef(false);
@@ -22,22 +23,49 @@ export const useVercelWalletPersistence = () => {
   const globalState = useRef({
     isConnected: false,
     address: null,
-    connector: null,
     lastReconnectAttempt: 0
   });
 
   // Update global state when wallet connects
   useEffect(() => {
-    if (isConnected && address) {
+    const connected = lineraWalletService.isConnected();
+    const addr = lineraWalletService.userAddress;
+
+    if (connected && addr) {
       globalState.current = {
         isConnected: true,
-        address,
-        connector: 'metaMask', // Default to MetaMask
+        address: addr,
         lastReconnectAttempt: 0
       };
-      console.log('✅ Vercel wallet connected, updating global state:', globalState.current);
+      setIsConnected(true);
+      setAddress(addr);
+      console.log('Vercel wallet connected, updating global state:', globalState.current);
     }
-  }, [isConnected, address]);
+  }, []);
+
+  // Listen for wallet events
+  useEffect(() => {
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      console.log('Vercel Linera Wallet event:', event);
+
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+        setIsReconnecting(false);
+        globalState.current.isConnected = true;
+        globalState.current.address = data?.address;
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+        globalState.current.isConnected = false;
+        globalState.current.address = null;
+      } else if (event === 'needsPassword') {
+        setIsReconnecting(true);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Check for wallet reconnection
   useEffect(() => {
@@ -48,46 +76,27 @@ export const useVercelWalletPersistence = () => {
 
     const checkAndReconnect = () => {
       const currentTime = Date.now();
-      
-      console.log('🌐 Vercel Push Universal Wallet check:', {
-        connectionStatus,
+
+      console.log('Vercel Linera Wallet check:', {
         isConnected,
         address,
-        globalState: globalState.current,
-        pushChainClient: !!pushChainClient,
+        hasStoredWallet: hasStoredWallet(),
         reconnectAttempted: reconnectAttempted.current,
         timeSinceLastCheck: currentTime - lastPageCheck.current,
-        windowDefined: typeof window !== 'undefined'
       });
 
       // Update last check time
       lastPageCheck.current = currentTime;
 
-      // Push Universal Wallet handles reconnection automatically
-      // We just monitor the state
-      const shouldReconnect = 
-        !isConnected && 
-        typeof window !== 'undefined' &&
-        !reconnectAttempted.current;
-
-      if (shouldReconnect) {
-        console.log('🔄 Vercel Push Universal Wallet: Monitoring connection...');
+      // Check if we have a stored wallet that needs unlocking
+      if (!isConnected && hasStoredWallet() && !reconnectAttempted.current) {
+        console.log('Vercel: Stored wallet found, needs unlock');
+        setIsReconnecting(true);
         reconnectAttempted.current = true;
-
-        // Push Universal Wallet handles reconnection internally
-        setTimeout(() => {
-          if (!isConnected) {
-            console.log('❌ Push Universal Wallet reconnection timeout');
-            reconnectAttempted.current = false;
-          } else {
-            console.log('✅ Push Universal Wallet reconnection successful');
-            reconnectAttempted.current = false;
-          }
-        }, 5000);
       }
     };
 
-    // Very short delay for Vercel - try to reconnect immediately
+    // Very short delay for Vercel
     const delay = 500;
     reconnectTimeout.current = setTimeout(checkAndReconnect, delay);
 
@@ -96,30 +105,12 @@ export const useVercelWalletPersistence = () => {
         clearTimeout(reconnectTimeout.current);
       }
     };
-  }, [isConnected, address, connectionStatus, pushChainClient]);
-
-  // Handle page navigation
-  useEffect(() => {
-    const handlePageNavigation = () => {
-      console.log('🔄 Page navigation detected in Vercel');
-      
-      // Reset reconnection flag on page navigation
-      reconnectAttempted.current = false;
-      
-      // Push Universal Wallet handles page navigation automatically
-      if (globalState.current.isConnected && !isConnected) {
-        console.log('🔄 Page navigation: Push Universal Wallet will handle reconnection...');
-      }
-    };
-
-    // Run on every page load
-    handlePageNavigation();
-  }, [isConnected, connectionStatus, pushChainClient]);
+  }, [isConnected, address]);
 
   return {
     isConnected,
     address,
-    isReconnecting: reconnectAttempted.current,
+    isReconnecting,
     globalState: globalState.current
   };
 };

@@ -1,43 +1,44 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
 const SmartAccountInfo = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
   const [smartAccountInfo, setSmartAccountInfo] = useState(null);
-  const [isSmartAccount, setIsSmartAccount] = useState(false);
 
   useEffect(() => {
-    const checkSmartAccount = async () => {
-      if (!isConnected || !address || !pushChainClient) return;
+    // Check initial state
+    setIsConnected(lineraWalletService.isConnected());
+    setAddress(lineraWalletService.userAddress);
 
-      try {
-        // Push Universal Wallet provides smart account functionality by default
-        setIsSmartAccount(true);
-        setSmartAccountInfo({
-          address,
-          type: 'Push Universal Smart Account',
-          hasCode: true,
-          features: ['Gasless Transactions', 'Social Login', 'Batch Transactions']
-        });
-      } catch (error) {
-        console.error('Error checking smart account:', error);
-        // Fallback to EOA
-        setIsSmartAccount(false);
-        setSmartAccountInfo({
-          address,
-          type: 'Externally Owned Account (EOA)',
-          hasCode: false
-        });
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
       }
-    };
+    });
 
-    checkSmartAccount();
-  }, [isConnected, address, pushChainClient]);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (isConnected && address) {
+      // Linera wallet info
+      setSmartAccountInfo({
+        address,
+        type: 'Linera Wallet',
+        hasCode: true,
+        features: ['Native Linera Support', 'Faucet Integration', 'Encrypted Storage']
+      });
+    } else {
+      setSmartAccountInfo(null);
+    }
+  }, [isConnected, address]);
 
   if (!isConnected || !smartAccountInfo) return null;
 
@@ -51,21 +52,21 @@ const SmartAccountInfo = () => {
         </div>
         <div className="flex justify-between">
           <span className="text-gray-400">Type:</span>
-          <span className={`font-medium ${isSmartAccount ? 'text-blue-400' : 'text-green-400'}`}>
+          <span className="font-medium text-emerald-400">
             {smartAccountInfo.type}
           </span>
         </div>
-        {isSmartAccount && smartAccountInfo.features && (
-          <div className="mt-2 p-2 bg-blue-900/30 rounded border border-blue-700">
+        {smartAccountInfo.features && (
+          <div className="mt-2 p-2 bg-emerald-900/30 rounded border border-emerald-700">
             <div className="flex items-center space-x-2 mb-2">
-              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-              <span className="text-blue-300 text-xs">Push Universal Wallet Features</span>
+              <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+              <span className="text-emerald-300 text-xs">Linera Wallet Features</span>
             </div>
             <div className="space-y-1">
               {smartAccountInfo.features.map((feature, index) => (
                 <div key={index} className="flex items-center space-x-2">
-                  <div className="w-1 h-1 bg-blue-300 rounded-full"></div>
-                  <span className="text-blue-200 text-xs">{feature}</span>
+                  <div className="w-1 h-1 bg-emerald-300 rounded-full"></div>
+                  <span className="text-emerald-200 text-xs">{feature}</span>
                 </div>
               ))}
             </div>

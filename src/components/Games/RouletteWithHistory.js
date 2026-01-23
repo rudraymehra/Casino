@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import React, { useState, useEffect } from 'react';
+import { lineraWalletService } from '@/services/LineraWalletService';
 import { ethers } from 'ethers';
 import { ExternalLink, Hash, CheckCircle, AlertCircle } from 'lucide-react';
 import { useGameHistory } from '../../hooks/useGameHistory';
@@ -12,10 +12,25 @@ import GameHistoryTable from './GameHistoryTable';
  * Shows how to integrate VRF results with game history
  */
 const RouletteWithHistory = () => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
+
+  useEffect(() => {
+    setIsConnected(lineraWalletService.isConnected());
+    setAddress(lineraWalletService.userAddress);
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
   const { saveRouletteGame, saving } = useGameHistory();
   const {
     isReady: vrfReady,

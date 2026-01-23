@@ -72,6 +72,21 @@ impl QueryRoot {
         self.state.total_funds.get().to_string()
     }
 
+    /// Get a player's balance (in attos)
+    async fn player_balance(&self, owner: String) -> String {
+        // Parse owner from string
+        let owner: linera_sdk::linera_base_types::AccountOwner = match owner.parse() {
+            Ok(o) => o,
+            Err(_) => return "0".to_string(),
+        };
+
+        self.state.player_balances.get(&owner)
+            .await
+            .unwrap_or(Some(0))
+            .unwrap_or(0)
+            .to_string()
+    }
+
     /// Get the game history
     async fn game_history(&self) -> Vec<casino::GameOutcome> {
         self.state.game_history.read(..)
@@ -94,6 +109,30 @@ struct MutationRoot {
 
 #[Object]
 impl MutationRoot {
+    /// Deposit funds into the casino
+    async fn deposit(&self, amount: String) -> bool {
+        let amount = match amount.parse::<u128>() {
+            Ok(a) => Amount::from_attos(a),
+            Err(_) => return false,
+        };
+
+        let operation = CasinoOperation::Deposit { amount };
+        self.runtime.schedule_operation(&operation);
+        true
+    }
+
+    /// Withdraw funds from the casino
+    async fn withdraw(&self, amount: String) -> bool {
+        let amount = match amount.parse::<u128>() {
+            Ok(a) => Amount::from_attos(a),
+            Err(_) => return false,
+        };
+
+        let operation = CasinoOperation::Withdraw { amount };
+        self.runtime.schedule_operation(&operation);
+        true
+    }
+
     /// Schedule a bet operation
     async fn place_bet(
         &self,

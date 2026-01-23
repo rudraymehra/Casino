@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Use webpack instead of turbopack for custom webpack config compatibility
+  // External packages for server components
+  serverExternalPackages: ['@linera/client'],
+  // Turbopack config (Next.js 16+)
   turbopack: {},
   transpilePackages: ['three'],
   images: {
@@ -36,6 +38,19 @@ const nextConfig = {
       ...config.resolve.alias,
       '@': require('path').resolve(__dirname, 'src'),
     };
+
+    // Enable WebAssembly support
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+
+    // Handle WASM files
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: 'webassembly/async',
+    });
     
     // Optimize chunking for better loading performance
     if (!isServer && !dev) {

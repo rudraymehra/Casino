@@ -1,5 +1,5 @@
-import React from 'react';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import React, { useState, useEffect } from 'react';
+import { lineraWalletService } from '@/services/LineraWalletService';
 import WalletConnectionHandler from '../Wallet/WalletConnectionHandler';
 import { useVRFPregeneration } from '../../hooks/useVRFPregeneration';
 import VRFStatusModal from '../VRF/VRFStatusModal';
@@ -9,10 +9,27 @@ import VRFStatusModal from '../VRF/VRFStatusModal';
  * Wraps the entire app with wallet connection handling
  */
 const AppLayout = ({ children }) => {
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const address = pushChainClient?.universal?.account || null;
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState(null);
+
+  useEffect(() => {
+    // Check initial state
+    setIsConnected(lineraWalletService.isConnected());
+    setAddress(lineraWalletService.userAddress);
+
+    const unsubscribe = lineraWalletService.addListener((event, data) => {
+      if (event === 'connected') {
+        setIsConnected(true);
+        setAddress(data?.address);
+      } else if (event === 'disconnected') {
+        setIsConnected(false);
+        setAddress(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const {
     vrfStatus,
     totalVRF,
@@ -23,6 +40,7 @@ const AppLayout = ({ children }) => {
     generateVRFBatch,
     canPlayGame
   } = useVRFPregeneration();
+
   return (
     <WalletConnectionHandler>
       <div className="min-h-screen bg-gray-50">
@@ -55,7 +73,7 @@ const AppLayout = ({ children }) => {
                   </a>
                 </div>
               </div>
-              
+
               {/* VRF Status & Wallet */}
               <div className="flex items-center gap-3">
                 {/* VRF Status Button */}
@@ -66,8 +84,8 @@ const AppLayout = ({ children }) => {
                       openModal();
                     }}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      totalVRF > 0 
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                      totalVRF > 0
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                         : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
                     }`}
                   >
@@ -76,13 +94,23 @@ const AppLayout = ({ children }) => {
                       VRF PROOFS: {totalVRF}
                     </span>
                     {isGenerating && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
                     )}
                   </button>
                 )}
-                
-                {/* Wallet Connection Button */}
-                <w3m-button />
+
+                {/* Wallet Connection Status */}
+                <div className="flex items-center gap-2">
+                  {isConnected ? (
+                    <span className="px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
+                      {address?.slice(0, 6)}...{address?.slice(-4)}
+                    </span>
+                  ) : (
+                    <span className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
+                      Not Connected
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -102,7 +130,7 @@ const AppLayout = ({ children }) => {
                 <span className="font-medium">Provably Fair Gaming</span>
               </div>
               <p className="text-sm">
-                All games use Pyth Entropy for verifiable randomness on Monad Network
+                All games use Pyth Entropy for verifiable randomness on Linera Network
               </p>
             </div>
           </div>

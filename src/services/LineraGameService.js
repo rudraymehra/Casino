@@ -85,7 +85,7 @@ class LineraGameService {
     
     try {
       // Check if Linera wallet is connected - use direct chain service if so
-      if (lineraChainService.isConnected()) {
+      if (lineraChainService.checkConnection()) {
         console.log('📡 Using Linera Chain Service (wallet connected)');
         const result = await lineraChainService.placeBet(gameType, betAmount, gameParams);
         
@@ -140,7 +140,7 @@ class LineraGameService {
    * Check if user has connected Linera wallet
    */
   isWalletConnected() {
-    return lineraChainService.isConnected();
+    return lineraChainService.checkConnection();
   }
 
   /**

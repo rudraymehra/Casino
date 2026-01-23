@@ -6,27 +6,24 @@ import { FaHistory, FaStar, FaTrophy, FaChartBar, FaChartLine, FaBomb, FaSort, F
 import { GiMining, GiDiamonds, GiTreasureMap, GiGoldBar, GiDiamondHard, GiDiamondTrophy } from "react-icons/gi";
 import { HiClock, HiOutlineLightningBolt } from "react-icons/hi";
 
+// Linera Configuration
+const LINERA_CONFIG = {
+  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
+  explorerUrl: 'https://explorer.testnet-conway.linera.net',
+};
+
 const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
   // State for sorting
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
 
-  // Open Push Chain Explorer link for transaction hash
-  const openPushChainExplorer = (hash) => {
-    if (hash && hash !== 'unknown') {
-      const explorerUrl = `https://donut.push.network/tx/${hash}`;
-      window.open(explorerUrl, '_blank');
-    }
+  // Open Linera Explorer link
+  const openLineraExplorer = (chainId) => {
+    const targetChainId = chainId || LINERA_CONFIG.chainId;
+    const explorerUrl = `${LINERA_CONFIG.explorerUrl}/chains/${targetChainId}`;
+    window.open(explorerUrl, '_blank');
   };
 
-  // Open Entropy Explorer link
-  const openEntropyExplorer = (txHash) => {
-    if (txHash) {
-      const entropyExplorerUrl = `https://entropy-explorer.pyth.network/?chain=arbitrum-sepolia&search=${txHash}`;
-      window.open(entropyExplorerUrl, '_blank');
-    }
-  };
-  
   // Default user stats if none provided
   const defaultStats = {
     totalPlayed: 0,
@@ -41,7 +38,7 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
 
   // Use real game history data from props
   const history = gameHistory.length > 0 ? gameHistory : [];
-  
+
   // Handle sorting
   const handleSort = (field) => {
     if (sortField === field) {
@@ -51,13 +48,13 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
       setSortDirection('asc');
     }
   };
-  
+
   // Sort icon component
   const SortIcon = ({ field }) => {
     if (sortField !== field) return <FaSort className="text-white/30 ml-1" size={10} />;
     return sortDirection === 'asc' ? <FaSortUp className="text-purple-400 ml-1" size={12} /> : <FaSortDown className="text-purple-400 ml-1" size={12} />;
   };
-  
+
   // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -71,10 +68,10 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
     hidden: { opacity: 0, x: -10 },
     visible: { opacity: 1, x: 0 }
   };
-  
+
   const cardHoverVariants = {
-    hover: { 
-      y: -5, 
+    hover: {
+      y: -5,
       boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)",
       transition: { duration: 0.2 }
     }
@@ -86,7 +83,7 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
       <div className="absolute top-0 right-0 w-40 h-40 bg-purple-600/5 rounded-full blur-3xl -z-1"></div>
       <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-600/5 rounded-full blur-3xl -z-1"></div>
       <div className="absolute top-1/2 left-1/3 w-20 h-20 bg-pink-500/5 rounded-full blur-2xl -z-1"></div>
-      
+
       {/* Header with shimmer effect */}
       <div className="relative overflow-hidden mb-5">
         <div className="flex items-center justify-between">
@@ -103,17 +100,17 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
             <span className="text-white/70"> Games</span>
           </div>
         </div>
-        
+
         {/* Animated underline */}
         <div className="h-px mt-3 bg-gradient-to-r from-purple-600/50 via-blue-600/30 to-transparent relative overflow-hidden">
-          <motion.div 
+          <motion.div
             className="h-full w-20 bg-gradient-to-r from-transparent via-white/70 to-transparent absolute"
-            animate={{ 
+            animate={{
               x: ["0%", "100%"],
               opacity: [0, 1, 0]
             }}
-            transition={{ 
-              repeat: Infinity, 
+            transition={{
+              repeat: Infinity,
               duration: 2,
               ease: "linear"
             }}
@@ -123,67 +120,67 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
 
       {/* User Stats - Enhanced Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 lg:gap-3 mb-5">
-        <motion.div 
+        <motion.div
           className="bg-gradient-to-br from-purple-900/30 to-purple-800/10 rounded-xl p-3 border border-purple-800/30 shadow-md"
           whileHover="hover"
           variants={cardHoverVariants}
         >
           <div className="text-xs text-white/60 mb-1 font-sans">Games Played</div>
           <div className="text-sm font-semibold text-white flex items-center mt-1">
-            <FaChartBar className="mr-1.5 text-blue-400" /> 
+            <FaChartBar className="mr-1.5 text-blue-400" />
             <span className="font-display">{stats.totalPlayed}</span>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="bg-gradient-to-br from-purple-900/30 to-purple-800/10 rounded-xl p-3 border border-purple-800/30 shadow-md"
           whileHover="hover"
           variants={cardHoverVariants}
         >
           <div className="text-xs text-white/60 mb-1 font-sans">Games Won</div>
           <div className="text-sm font-semibold text-white flex items-center mt-1">
-            <FaTrophy className="mr-1.5 text-yellow-400" /> 
+            <FaTrophy className="mr-1.5 text-yellow-400" />
             <span className="font-display">{stats.totalWon}</span>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="bg-gradient-to-br from-purple-900/30 to-purple-800/10 rounded-xl p-3 border border-purple-800/30 shadow-md"
           whileHover="hover"
           variants={cardHoverVariants}
         >
           <div className="text-xs text-white/60 mb-1 font-sans">Win Rate</div>
           <div className="text-sm font-semibold text-white flex items-center mt-1">
-            <FaStar className="mr-1.5 text-orange-400" /> 
+            <FaStar className="mr-1.5 text-orange-400" />
             <span className="font-display">{stats.winRate}</span>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="bg-gradient-to-br from-purple-900/30 to-purple-800/10 rounded-xl p-3 border border-purple-800/30 shadow-md"
           whileHover="hover"
           variants={cardHoverVariants}
         >
           <div className="text-xs text-white/60 mb-1 font-sans">Biggest Win</div>
           <div className="text-sm font-semibold text-green-400 flex items-center mt-1">
-            <GiDiamondTrophy className="mr-1.5" /> 
+            <GiDiamondTrophy className="mr-1.5" />
             <span className="font-display">{stats.biggestWin}</span>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="bg-gradient-to-br from-purple-900/30 to-purple-800/10 rounded-xl p-3 border border-purple-800/30 shadow-md"
           whileHover="hover"
           variants={cardHoverVariants}
         >
           <div className="text-xs text-white/60 mb-1 font-sans">Avg Multiplier</div>
           <div className="text-sm font-semibold text-yellow-400 flex items-center mt-1">
-            <HiOutlineLightningBolt className="mr-1.5" /> 
+            <HiOutlineLightningBolt className="mr-1.5" />
             <span className="font-display">{stats.avgMultiplier}</span>
           </div>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           className="bg-gradient-to-br from-purple-900/30 to-purple-800/10 rounded-xl p-3 border border-purple-800/30 shadow-md"
           whileHover="hover"
           variants={cardHoverVariants}
@@ -192,7 +189,7 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
           <div className={`text-sm font-semibold flex items-center mt-1 ${
             stats.profitLoss.startsWith('-') ? 'text-red-400' : 'text-green-400'
           }`}>
-            <GiGoldBar className="mr-1.5" /> 
+            <GiGoldBar className="mr-1.5" />
             <span className="font-display">{stats.profitLoss}</span>
           </div>
         </motion.div>
@@ -202,51 +199,51 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
       <div className="bg-black/20 rounded-xl border border-purple-800/20 p-4 shadow-inner">
         {/* Header */}
         <div className="grid grid-cols-7 gap-2 pb-3 text-xs font-medium border-b border-purple-800/30 px-2">
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
             onClick={() => handleSort('id')}
           >
             Game <SortIcon field="id" />
           </div>
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
             onClick={() => handleSort('mines')}
           >
             Mines <SortIcon field="mines" />
           </div>
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
             onClick={() => handleSort('bet')}
           >
             Bet <SortIcon field="bet" />
           </div>
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
             onClick={() => handleSort('multiplier')}
           >
             Multiplier <SortIcon field="multiplier" />
           </div>
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
             onClick={() => handleSort('payout')}
           >
             Payout <SortIcon field="payout" />
           </div>
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
             onClick={() => handleSort('time')}
           >
             Time <SortIcon field="time" />
           </div>
-          <div 
+          <div
             className="flex items-center cursor-pointer hover:text-white/90 transition-colors text-white/70"
           >
-            Entropy Explorer
+            Linera Proof
           </div>
         </div>
-        
+
         {/* History Items */}
-        <motion.div 
+        <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
@@ -256,24 +253,24 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
             <motion.div
               key={game.id}
               variants={itemVariants}
-              whileHover={{ 
-                scale: 1.02, 
+              whileHover={{
+                scale: 1.02,
                 boxShadow: "0 8px 20px rgba(0, 0, 0, 0.2)",
                 y: -2
               }}
               className={`grid grid-cols-7 gap-2 p-3 text-xs rounded-lg transition-all ${
-                game.outcome === 'win' 
-                  ? 'bg-gradient-to-r from-green-900/20 to-green-800/5 border border-green-800/30' 
+                game.outcome === 'win'
+                  ? 'bg-gradient-to-r from-green-900/20 to-green-800/5 border border-green-800/30'
                   : 'bg-gradient-to-r from-red-900/20 to-red-800/5 border border-red-800/30'
               } shadow-sm`}
             >
               <div className="flex items-center">
                 <div className={`w-5 h-5 rounded-full mr-1.5 flex items-center justify-center ${
-                  game.outcome === 'win' 
-                    ? 'bg-green-900/40 text-green-400 border border-green-800/30' 
+                  game.outcome === 'win'
+                    ? 'bg-green-900/40 text-green-400 border border-green-800/30'
                     : 'bg-red-900/40 text-red-400 border border-red-800/30'
                 }`}>
-                  {game.outcome === 'win' ? '✓' : '✗'}
+                  {game.outcome === 'win' ? '+' : 'x'}
                 </div>
                 <span className="text-white/90 font-medium">#{game.id}</span>
               </div>
@@ -308,75 +305,47 @@ const MinesHistory = ({ gameHistory = [], userStats = {} }) => {
                 <span>{game.time}</span>
               </div>
               <div className="text-white/70 flex items-center justify-center">
-                {game.entropyProof ? (
+                {game.lineraProof || game.entropyProof?.lineraChainId ? (
                   <div className="flex flex-col gap-1 items-center">
                     <div className="text-xs text-gray-300 font-mono text-center">
-                      <div className="text-yellow-400 font-bold">{game.entropyProof.sequenceNumber && game.entropyProof.sequenceNumber !== '0' ? String(game.entropyProof.sequenceNumber) : ''}</div>
+                      <div className="text-yellow-400 font-bold">
+                        {game.lineraProof?.chainId
+                          ? `Chain: ${game.lineraProof.chainId.slice(0, 8)}...`
+                          : game.entropyProof?.sequenceNumber && game.entropyProof.sequenceNumber !== '0'
+                            ? String(game.entropyProof.sequenceNumber)
+                            : ''}
+                      </div>
                     </div>
                     <div className="flex gap-1">
-                      {(game.entropyProof.monadExplorerUrl || game.entropyProof.transactionHash || game.entropyProof.pushChainTxHash) && (
-                        <button
-                          onClick={() => {
-                            const url = game.entropyProof.monadExplorerUrl || 
-                                       game.entropyProof.pushChainExplorerUrl ||
-                                       `https://donut.push.network/tx/${game.entropyProof.transactionHash || game.entropyProof.pushChainTxHash}`;
-                            window.open(url, '_blank');
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 bg-[#8B2398]/10 border border-[#8B2398]/30 rounded text-[#8B2398] text-xs hover:bg-[#8B2398]/20 transition-colors"
-                        >
-                          <FaExternalLinkAlt size={8} />
-                          Push
-                        </button>
-                      )}
-                      {(game.entropyProof.solanaExplorerUrl || game.solanaTxSignature) && (
-                        <button
-                          onClick={() => {
-                            const url = game.entropyProof.solanaExplorerUrl || 
-                                       `https://explorer.solana.com/tx/${game.solanaTxSignature}?cluster=testnet`;
-                            window.open(url, '_blank');
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 bg-[#14D854]/10 border border-[#14D854]/30 rounded text-[#14D854] text-xs hover:bg-[#14D854]/20 transition-colors"
-                        >
-                          <FaExternalLinkAlt size={8} />
-                          Solana
-                        </button>
-                      )}
-                      {(game.entropyProof.lineraExplorerUrl || game.entropyProof.lineraChainId) && (
-                        <button
-                          onClick={() => {
-                            const url = game.entropyProof.lineraExplorerUrl || 
-                                       `https://explorer.linera.io/chain/${game.entropyProof.lineraChainId}/block/${game.entropyProof.lineraBlockHeight}`;
-                            window.open(url, '_blank');
-                          }}
-                          className="flex items-center gap-1 px-2 py-1 bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded text-[#3B82F6] text-xs hover:bg-[#3B82F6]/20 transition-colors"
-                        >
-                          <FaExternalLinkAlt size={8} />
-                          Linera
-                        </button>
-                      )}
-                      {game.entropyProof.transactionHash && (
-                        <button
-                          onClick={() => openEntropyExplorer(game.entropyProof.transactionHash)}
-                          className="flex items-center gap-1 px-2 py-1 bg-[#681DDB]/10 border border-[#681DDB]/30 rounded text-[#681DDB] text-xs hover:bg-[#681DDB]/20 transition-colors"
-                        >
-                          <FaExternalLinkAlt size={8} />
-                          Entropy
-                        </button>
-                      )}
+                      <button
+                        onClick={() => {
+                          const url = game.lineraProof?.explorerUrl ||
+                                     game.entropyProof?.lineraExplorerUrl ||
+                                     `${LINERA_CONFIG.explorerUrl}/chains/${game.lineraProof?.chainId || LINERA_CONFIG.chainId}`;
+                          window.open(url, '_blank');
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded text-[#3B82F6] text-xs hover:bg-[#3B82F6]/20 transition-colors"
+                      >
+                        <FaExternalLinkAlt size={8} />
+                        Linera
+                      </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-purple-400 text-xs">Generating...</span>
-                  </div>
+                  <button
+                    onClick={() => openLineraExplorer(null)}
+                    className="flex items-center gap-1 px-2 py-1 bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded text-[#3B82F6] text-xs hover:bg-[#3B82F6]/20 transition-colors"
+                  >
+                    <FaExternalLinkAlt size={8} />
+                    Linera
+                  </button>
                 )}
               </div>
             </motion.div>
           ))}
         </motion.div>
       </div>
-      
+
       {/* Empty State - Enhanced */}
       {history.length === 0 && (
         <div className="text-center py-16 px-4">

@@ -5,15 +5,28 @@ const loadInitialState = () => {
   if (typeof window !== 'undefined') {
     const savedBalance = localStorage.getItem('userBalance');
     const savedLoading = localStorage.getItem('isLoading');
-    const walletConnected = localStorage.getItem('wagmi.connected') === 'true';
-    
-    // Only restore balance if wallet was previously connected
+
+    // Check for Linera wallet connection (dev mode or actual connection)
+    const devWalletState = localStorage.getItem('dev-wallet-state');
+    const lineraWalletState = localStorage.getItem('linera_wallet_state');
+    const isDev = process.env.NODE_ENV === 'development';
+
+    // In dev mode, always allow balance restoration
+    // Otherwise check if Linera wallet was connected
+    const walletConnected = isDev || devWalletState === 'connected' || !!lineraWalletState;
+
     let cleanBalance = "0";
-    if (walletConnected && savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {
+    if (savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {
       cleanBalance = savedBalance;
     }
-    // Don't auto-set demo balance without wallet connection
-    
+
+    // In dev mode with no balance, set demo balance
+    if (isDev && (!cleanBalance || parseFloat(cleanBalance) <= 0)) {
+      cleanBalance = "1000";
+      localStorage.setItem('userBalance', cleanBalance);
+      console.log('DEV MODE: Initialized demo balance to 1000 LINERA');
+    }
+
     return {
       userBalance: cleanBalance,
       isLoading: savedLoading === 'true' || false,

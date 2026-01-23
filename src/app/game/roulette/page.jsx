@@ -31,15 +31,17 @@ import StrategyGuide from './components/StrategyGuide';
 import RoulettePayout from './components/RoulettePayout';
 import WinProbabilities from './components/WinProbabilities';
 import RouletteHistory from './components/RouletteHistory';
-import { usePushWalletContext, usePushChainClient, PushUI } from '@pushchain/ui-kit';
+import { lineraWalletService } from '@/services/LineraWalletService';
 import { useSelector, useDispatch } from 'react-redux';
 import { setBalance, setLoading, loadBalanceFromStorage } from '@/store/balanceSlice';
 import lineraGameService from '@/services/LineraGameService';
 
-// Ethereum client functions will be added here when needed
-
-// Casino module address for Ethereum
-const CASINO_MODULE_ADDRESS = process.env.NEXT_PUBLIC_CASINO_MODULE_ADDRESS || "0x0000000000000000000000000000000000000000";
+// Linera Configuration
+const LINERA_CONFIG = {
+  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
+  explorerUrl: 'https://explorer.testnet-conway.linera.net',
+};
 
 const parsePCAmount = (amount) => {
   // Parse PC amount
@@ -59,7 +61,7 @@ const CasinoGames = {
 };
 
 
-// Ethereum wallet integration will be added here
+// Linera wallet integration
 
 const TooltipWide = styled(({ className, ...props }) => (
   <Tooltip {...props} classes={{ popper: className }} />
@@ -1190,24 +1192,17 @@ export default function GameRoulette() {
   const [bettingHistory, setBettingHistory] = useState([]);
   const [error, setError] = useState(null);
 
-  // Push Universal Wallet
-  const { connectionStatus } = usePushWalletContext();
-  const { pushChainClient } = usePushChainClient();
-  const isPushConnected = connectionStatus === PushUI.CONSTANTS.CONNECTION.STATUS.CONNECTED;
-  const pushAddress = pushChainClient?.universal?.account || null;
-  
   // Linera Wallet - use the shared wallet status hook
   const walletStatus = useWalletStatus();
-  
-  // Consider connected if EITHER Push wallet OR Linera wallet is connected
-  const isConnected = isPushConnected || walletStatus.isConnected;
-  const address = pushAddress || walletStatus.address;
+
+  // Use Linera wallet connection status
+  const isConnected = walletStatus.isConnected;
+  const address = walletStatus.address;
   const account = { address };
   const connected = isConnected;
   const isWalletReady = isConnected && address;
   const [realBalance, setRealBalance] = useState('0');
   const { balance } = useToken(address); // Keep for compatibility
-  const HOUSE_ADDR = CASINO_MODULE_ADDRESS;
 
   // Function to fetch real PC balance will be defined after useSelector
 
@@ -1385,7 +1380,7 @@ export default function GameRoulette() {
     if (!account?.address) return;
 
     try {
-      // For Ethereum, we can use the userBalance from Redux store
+      // Use the userBalance from Redux store
       // or fetch from the blockchain if needed
       const currentBalance = parseFloat(userBalance || '0');
       setRealBalance(currentBalance.toFixed(8));
@@ -1610,7 +1605,7 @@ export default function GameRoulette() {
   const lockBet = async () => {
     // Check if wallet is connected
     if (!isConnected) {
-      alert("Please connect your Ethereum wallet first to play Roulette!");
+      alert("Please connect your Linera wallet first to play Roulette!");
       return;
     }
 
@@ -2065,21 +2060,23 @@ export default function GameRoulette() {
               lineraProof: newBet.lineraProof
             })
           }).then(response => response.json())
-            .then(pushResult => {
-              console.log('🔗 Push Chain logging result:', pushResult);
-              if (pushResult.success) {
-                // Add Push Chain info to bet result
-                newBet.pushChainTxHash = pushResult.transactionHash;
-                newBet.pushChainExplorerUrl = pushResult.pushChainExplorerUrl;
-                
-                // Update betting history with Push Chain info
+            .then(lineraResult => {
+              console.log('⚡ Linera logging result (Roulette):', lineraResult);
+              if (lineraResult.success) {
+                // Add Linera info to bet result
+                newBet.lineraChainId = lineraResult.chainId;
+                newBet.lineraBlockHeight = lineraResult.blockHeight;
+                newBet.lineraExplorerUrl = lineraResult.lineraExplorerUrl;
+
+                // Update betting history with Linera info
                 setBettingHistory(prev => {
                   const updatedHistory = [...prev];
                   if (updatedHistory.length > 0) {
-                    updatedHistory[0] = { 
-                      ...updatedHistory[0], 
-                      pushChainTxHash: pushResult.transactionHash,
-                      pushChainExplorerUrl: pushResult.pushChainExplorerUrl
+                    updatedHistory[0] = {
+                      ...updatedHistory[0],
+                      lineraChainId: lineraResult.chainId,
+                      lineraBlockHeight: lineraResult.blockHeight,
+                      lineraExplorerUrl: lineraResult.lineraExplorerUrl
                     };
                   }
                   return updatedHistory;
@@ -2087,73 +2084,8 @@ export default function GameRoulette() {
               }
             })
             .catch(error => {
-              console.error('❌ Push Chain logging failed:', error);
+              console.error('❌ Linera logging failed:', error);
             });
-
-          // Log game result to all blockchains (Solana and Linera) in parallel
-          const gameLogData = {
-            gameType: 'ROULETTE',
-            gameResult: {
-              winningNumber,
-              totalBets: allBets.length,
-              winningBets: winningBets.length,
-              losingBets: losingBets.length
-            },
-            playerAddress: address || 'unknown',
-            betAmount: totalBetAmount,
-            payout: netResult,
-            entropyProof: newBet.entropyProof
-          };
-
-          // Parallel blockchain logging
-          Promise.allSettled([
-            // Solana logging
-            fetch('/api/log-to-solana', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(gameLogData)
-            }).then(res => res.json()).catch(err => ({ success: false, error: err.message })),
-            
-            // Linera logging
-            fetch('/api/log-to-linera', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(gameLogData)
-            }).then(res => res.json()).catch(err => ({ success: false, error: err.message }))
-          ]).then(([solanaResult, lineraResult]) => {
-            // Process Solana result
-            const solanaLogResult = solanaResult.status === 'fulfilled' ? solanaResult.value : { success: false, error: solanaResult.reason };
-            console.log('☀️ Solana logging result (Roulette):', solanaLogResult);
-            if (solanaLogResult.success) {
-              newBet.solanaTxSignature = solanaLogResult.transactionSignature;
-              newBet.solanaExplorerUrl = solanaLogResult.solanaExplorerUrl;
-            }
-
-            // Process Linera result
-            const lineraLogResult = lineraResult.status === 'fulfilled' ? lineraResult.value : { success: false, error: lineraResult.reason };
-            console.log('⚡ Linera logging result (Roulette):', lineraLogResult);
-            if (lineraLogResult.success) {
-              newBet.lineraChainId = lineraLogResult.chainId;
-              newBet.lineraBlockHeight = lineraLogResult.blockHeight;
-              newBet.lineraExplorerUrl = lineraLogResult.lineraExplorerUrl;
-            }
-            
-            // Update betting history with all blockchain info
-            setBettingHistory(prev => {
-              const updatedHistory = [...prev];
-              if (updatedHistory.length > 0) {
-                updatedHistory[0] = { 
-                  ...updatedHistory[0], 
-                  solanaTxSignature: solanaLogResult.success ? solanaLogResult.transactionSignature : null,
-                  solanaExplorerUrl: solanaLogResult.success ? solanaLogResult.solanaExplorerUrl : null,
-                  lineraChainId: lineraLogResult.success ? lineraLogResult.chainId : null,
-                  lineraBlockHeight: lineraLogResult.success ? lineraLogResult.blockHeight : null,
-                  lineraExplorerUrl: lineraLogResult.success ? lineraLogResult.lineraExplorerUrl : null
-                };
-              }
-              return updatedHistory;
-            });
-          });
           
           // Update betting history with entropy proof
           setBettingHistory(prev => {
@@ -2286,149 +2218,77 @@ export default function GameRoulette() {
     }
 
     try {
-      const amount = parseEther(winnings.toString()); // Use winnings as the amount to withdraw
-
       reset(e); // Reset the state after withdrawing
 
-      // Simulate the contract interaction
-      const withdrawSimulation =
-        await ViemClient.publicPharosSepoliaClient.simulateContract({
-          address: rouletteContractAddress,
-          abi: rouletteABI,
-          functionName: "withdrawTokens",
-          args: [amount],
-          account: address,
-        });
+      // Update local balance via Redux
+      const currentBalance = parseFloat(userBalance || '0');
+      const newBalance = (currentBalance + winnings).toString();
+      dispatch(setBalance(newBalance));
 
-      // Execute the contract transaction
-      const withdrawResponse = await ViemClient.getWalletClient().writeContract(
-        withdrawSimulation.request
-      );
+      console.log("Winnings added to balance successfully:", winnings);
+      alert(`Winnings of ${winnings} LINERA added to your balance!`);
 
-      if (withdrawResponse) {
-        // Extract hash from response if it's an object
-        const responseHash = typeof withdrawResponse === 'object' ?
-          (withdrawResponse.hash || String(withdrawResponse)) :
-          withdrawResponse;
-
-        console.log("Winnings withdrawn successfully:", responseHash);
-        alert("Winnings withdrawn successfully!");
-      } else {
-        throw new Error("Withdrawal transaction failed.");
-      }
     } catch (error) {
-      console.error("Error withdrawing winnings:", error);
-      alert(`Failed to withdraw winnings: ${error.message}`);
+      console.error("Error processing winnings:", error);
+      alert(`Failed to process winnings: ${error.message}`);
     }
   }, [playSound, winnings, reset]);
 
-  const config = undefined; // wagmi removed
-
-  const contractAddress = '0xbD8Ca722093d811bF314dDAB8438711a4caB2e73'; // ✅ FIX THIS
-
-  // Remove the custom writeContract function and use the imported one directly
-  const waitForTransaction = async (hash) => {
-    try {
-      // Ensure hash is a string, not an object
-      const hashStr = typeof hash === 'object' && hash.hash ? hash.hash : hash;
-      const receipt = await waitForTransactionReceipt({
-        hash: hashStr,
-        chainId: 0x138b
-      });
-      setTransactionReceipt(receipt);
-      return receipt;
-    } catch (error) {
-      console.error("Wait for transaction error:", error);
-      throw error;
-    }
-  };
-
-  // Update the checkNetwork function to focus on correct wallet detection
+  // Check if Linera wallet is connected
   const checkNetwork = async () => {
     // Ensure we're running in the browser
     if (typeof window === "undefined") return;
 
-    console.log("Checking network...");
+    console.log("Checking Linera network...");
 
     try {
-      // First check if user is connected via wagmi
+      // Check if user is connected via wallet status hook
       if (isConnected && address) {
-        console.log("Wallet connected via wagmi:", address);
+        console.log("Linera wallet connected:", address);
         setCorrectNetwork(true);
         return;
       }
 
-      // Fall back to window.ethereum check with retry
-      const checkWithRetry = async (attempts = 3) => {
-        if (window.ethereum && typeof window.ethereum.request === 'function') {
-          try {
-            // First check if any accounts are available (without prompting)
-            const accounts = await window.ethereum.request({ method: "eth_accounts" });
-            if (!accounts || accounts.length === 0) {
-              // No accounts connected - that's OK, just set network as "not checked"
-              console.log("No accounts connected, skipping chain ID check");
-              setCorrectNetwork(true); // Allow gameplay without wallet
-              return;
-            }
-            
-            console.log("Ethereum provider found with accounts, requesting chain ID...");
-            const chainId = await window.ethereum.request({ method: "eth_chainId" });
-            console.log("Current chain ID:", chainId);
+      // Check for Linera wallet (Croissant extension)
+      if (window.linera) {
+        console.log("Linera wallet detected");
+        setCorrectNetwork(true);
+        return;
+      }
 
-            // Support both Mantle Sepolia (0x138b) and Pharos Devnet (0xc352)
-            const isCorrectNetwork = chainId === "0x138b" || chainId === "0xc352";
-            console.log("Is correct network:", isCorrectNetwork);
-            setCorrectNetwork(isCorrectNetwork);
-          } catch (error) {
-            // Don't log as error if it's just not connected
-            if (error.code === 4001 || error.message?.includes('not connected')) {
-              console.log("Wallet not connected, allowing gameplay");
-              setCorrectNetwork(true);
-            } else if (attempts > 1) {
-              console.log(`Chain check failed, retrying... (${attempts - 1} attempts left)`);
-              setTimeout(() => checkWithRetry(attempts - 1), 500);
-            } else {
-              setCorrectNetwork(false);
-            }
-          }
-        } else {
-          console.log("Ethereum provider not available, allowing gameplay");
-          setCorrectNetwork(true); // Allow gameplay without MetaMask
-        }
-      };
-
-      // Start the retry process
-      checkWithRetry();
+      // No wallet connected - allow gameplay in demo mode
+      console.log("No Linera wallet connected, allowing demo gameplay");
+      setCorrectNetwork(true);
     } catch (error) {
       console.error("Error in checkNetwork:", error);
-      setCorrectNetwork(false);
+      setCorrectNetwork(true); // Allow gameplay anyway
     }
   };
 
   useEffect(() => {
     // Only check when component mounts or when wallet connection changes
     if (typeof window !== "undefined") {
-      console.log("Wallet connection state changed, checking network...");
+      console.log("Linera wallet connection state changed, checking network...");
       console.log("isConnected:", isConnected, "address:", address);
 
       checkNetwork();
 
-      // Setup event listener if provider exists
+      // Setup event listener for Linera wallet if available
       const setupListeners = () => {
-        if (window.ethereum && typeof window.ethereum.on === 'function') {
-          window.ethereum.on("chainChanged", () => {
-            console.log("Chain changed, rechecking network");
+        if (window.linera && typeof window.linera.on === 'function') {
+          window.linera.on("chainChanged", () => {
+            console.log("Linera chain changed, rechecking network");
             checkNetwork();
           });
-          window.ethereum.on("accountsChanged", () => {
-            console.log("Accounts changed, rechecking network");
+          window.linera.on("disconnect", () => {
+            console.log("Linera wallet disconnected");
             checkNetwork();
           });
 
           return () => {
-            if (window.ethereum && typeof window.ethereum.removeListener === 'function') {
-              window.ethereum.removeListener("chainChanged", checkNetwork);
-              window.ethereum.removeListener("accountsChanged", checkNetwork);
+            if (window.linera && typeof window.linera.off === 'function') {
+              window.linera.off("chainChanged", checkNetwork);
+              window.linera.off("disconnect", checkNetwork);
             }
           };
         }
@@ -2437,132 +2297,6 @@ export default function GameRoulette() {
       return setupListeners();
     }
   }, [isConnected, address]); // Add dependencies to run when wallet connection changes
-
-  const switchNetwork = async () => {
-    // Ensure we're running in the browser
-    if (typeof window === "undefined") return;
-
-    try {
-      // Check if wallet is connected first
-      if (!isConnected) {
-        console.log("Wallet not connected, please connect wallet first");
-        alert("Please connect your wallet first using the connect button in the top right corner");
-        return;
-      }
-
-      // Check if ethereum provider exists
-      if (!window.ethereum || typeof window.ethereum.request !== 'function') {
-        alert("No Ethereum wallet detected. Please install a wallet like MetaMask.");
-        return;
-      }
-
-      console.log("Attempting to switch to Mantle Sepolia network");
-
-      try {
-        // Try Mantle Sepolia first
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x138b" }],
-        });
-
-        console.log("Successfully switched to Mantle Sepolia");
-        // Set network to correct and reload after short delay
-        setCorrectNetwork(true);
-        setTimeout(() => window.location.reload(), 1000);
-        return;
-      } catch (switchError) {
-        console.log("Switch network error:", switchError);
-
-        // If network doesn't exist in wallet (error code 4902), try adding it
-        if (switchError.code === 4902) {
-          try {
-            console.log("Adding Mantle Sepolia to wallet");
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: "0x138b",
-                  chainName: "Mantle Sepolia",
-                  nativeCurrency: {
-                    name: "Mantle",
-                    symbol: "MNT",
-                    decimals: 18,
-                  },
-                  rpcUrls: ["https://rpc.sepolia.mantle.xyz"],
-                  blockExplorerUrls: ["https://sepolia.mantlescan.xyz"],
-                },
-              ],
-            });
-
-            // Try switching again after adding
-            try {
-              await window.ethereum.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: "0x138b" }],
-              });
-
-              console.log("Successfully switched to Mantle Sepolia after adding");
-              // Set network to correct and reload after short delay
-              setCorrectNetwork(true);
-              setTimeout(() => window.location.reload(), 1000);
-              return;
-            } catch (error) {
-              console.error("Error switching to Mantle after adding:", error);
-            }
-          } catch (addError) {
-            console.error("Failed to add Mantle Sepolia:", addError);
-
-            // If Mantle Sepolia fails, try Pharos Devnet as fallback
-            try {
-              console.log("Adding Pharos Devnet to wallet");
-              await window.ethereum.request({
-                method: "wallet_addEthereumChain",
-                params: [
-                  {
-                    chainId: "0xc352",
-                    chainName: "Pharos Devnet",
-                    nativeCurrency: {
-                      name: "Pharos",
-                      symbol: "PHR",
-                      decimals: 18,
-                    },
-                    rpcUrls: ["https://devnet.dplabs-internal.com"],
-                    blockExplorerUrls: ["https://pharosscan.xyz"],
-                  },
-                ],
-              });
-
-              // Try switching to Pharos
-              try {
-                await window.ethereum.request({
-                  method: "wallet_switchEthereumChain",
-                  params: [{ chainId: "0xc352" }],
-                });
-
-                console.log("Successfully switched to Pharos Devnet");
-                // Set network to correct and reload after short delay
-                setCorrectNetwork(true);
-                setTimeout(() => window.location.reload(), 1000);
-                return;
-              } catch (error) {
-                console.error("Error switching to Pharos after adding:", error);
-              }
-            } catch (pharosError) {
-              console.error("Failed to add Pharos Devnet:", pharosError);
-              alert("Unable to switch to required networks. Please try adding Mantle Sepolia manually.");
-            }
-          }
-        } else {
-          // Handle other errors
-          console.error("Failed to switch network:", switchError);
-          alert("Failed to switch network. Please try again or add Mantle Sepolia manually.");
-        }
-      }
-    } catch (error) {
-      console.error("Error in switchNetwork:", error);
-      alert("An error occurred while switching networks. Please refresh and try again.");
-    }
-  };
 
   // Calculate total bet
   const total = useMemo(() => {
@@ -3224,42 +2958,45 @@ export default function GameRoulette() {
               borderRadius: '12px'
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Shield size={16} style={{ color: '#FFC107' }} />
-                <Typography variant="subtitle2" sx={{ color: '#FFC107', fontWeight: 'bold' }}>
-                  Pyth Entropy
+                <Shield size={16} style={{ color: '#3B82F6' }} />
+                <Typography variant="subtitle2" sx={{ color: '#3B82F6', fontWeight: 'bold' }}>
+                  Linera Network
                 </Typography>
               </Box>
-              
+
               {!isConnected ? (
                 <Box sx={{ textAlign: 'center', py: 1 }}>
                   <Button
                     onClick={() => {
-                      if (window.ethereum) {
-                        window.ethereum.request({ method: 'eth_requestAccounts' });
+                      if (window.linera) {
+                        window.linera.request({ type: 'CONNECT_WALLET' });
+                      } else {
+                        alert('Please install the Croissant wallet extension for Linera');
+                        window.open('https://linera.io/wallet', '_blank');
                       }
                     }}
                     sx={{
-                      background: 'linear-gradient(135deg, #FFC107 0%, #FF9800 100%)',
+                      background: 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)',
                       color: 'white',
                       px: 2,
                       py: 1,
                       fontSize: '0.8rem',
                       '&:hover': {
-                        background: 'linear-gradient(135deg, #FFB300 0%, #F57C00 100%)',
+                        background: 'linear-gradient(135deg, #2563EB 0%, #0891B2 100%)',
                       }
                     }}
                   >
-                    Connect Wallet
+                    Connect Linera Wallet
                   </Button>
                 </Box>
               ) : (
                 <Box>
-                  <Typography variant="h6" sx={{ 
+                  <Typography variant="h6" sx={{
                     color: '#10B981',
                     fontWeight: 'bold',
                     textAlign: 'center'
                   }}>
-                    Pyth Entropy
+                    Conway Testnet
                   </Typography>
                   
                   <Typography variant="body2" sx={{ 
@@ -3553,7 +3290,6 @@ export default function GameRoulette() {
                 <iframe
                   src={`https://www.youtube.com/embed/${gameData.youtube}?si=${gameData.youtube}`}
                   title={`${gameData.title} Tutorial`}
-                  frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   style={{
@@ -3563,7 +3299,8 @@ export default function GameRoulette() {
                     width: '100%',
                     height: '100%',
                     borderRadius: '12px',
-                    zIndex: 1
+                    zIndex: 1,
+                    border: 0
                   }}
                 />
               </Box>
