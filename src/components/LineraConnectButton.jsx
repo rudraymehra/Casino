@@ -24,20 +24,20 @@ export default function LineraConnectButton() {
   const { userBalance } = useSelector((state) => state.balance);
   const [displayBalance, setDisplayBalance] = useState(0);
 
-  // Check localStorage for persisted demo connection state
-  const [persistedConnection, setPersistedConnection] = useState(false);
-
-  useEffect(() => {
-    // Check if we have a persisted demo connection
+  // Check localStorage for persisted demo connection state - initialize immediately
+  const checkPersistedConnection = () => {
+    if (typeof window === 'undefined') return false;
     const demoState = localStorage.getItem('demo-wallet-state');
     const demoOwner = localStorage.getItem('demo-wallet-owner');
     const savedBalance = localStorage.getItem('userBalance');
+    return demoState === 'connected' && demoOwner && savedBalance && parseFloat(savedBalance) > 0;
+  };
 
-    if (demoState === 'connected' && demoOwner && savedBalance && parseFloat(savedBalance) > 0) {
-      setPersistedConnection(true);
-    } else {
-      setPersistedConnection(false);
-    }
+  const [persistedConnection, setPersistedConnection] = useState(checkPersistedConnection);
+
+  // Update persisted connection state when dependencies change
+  useEffect(() => {
+    setPersistedConnection(checkPersistedConnection());
   }, [hookIsConnected, userBalance]);
 
   // Consider connected if hook says so OR if we have persisted state
