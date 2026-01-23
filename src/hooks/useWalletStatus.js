@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from 'react';
 import { lineraWalletService } from '@/services/LineraWalletService';
+import { lineraChainService } from '@/services/LineraChainService';
 
 const WalletStatusContext = createContext(null);
 
@@ -126,11 +127,22 @@ export function WalletStatusProvider({ children }) {
   const [lineraBalance, setLineraBalance] = useState(0);
 
   useEffect(() => {
-    // Check if Linera wallet is connected
+    // Check if Linera wallet is connected (check BOTH services)
     const checkLineraWallet = () => {
-      const connected = lineraWalletService.isConnected();
-      const addr = lineraWalletService.userAddress;
-      const bal = lineraWalletService.getBalance();
+      // Check lineraWalletService (native/CheCko wallet)
+      const walletServiceConnected = lineraWalletService.isConnected();
+      const walletServiceAddr = lineraWalletService.userAddress;
+      const walletServiceBal = lineraWalletService.getBalance();
+
+      // Check lineraChainService (Croissant/demo mode)
+      const chainServiceConnected = lineraChainService.checkConnection();
+      const chainServiceInfo = lineraChainService.getConnectionInfo();
+
+      // Use whichever service is connected
+      const connected = walletServiceConnected || chainServiceConnected;
+      const addr = walletServiceAddr || chainServiceInfo?.owner;
+      const bal = walletServiceConnected ? walletServiceBal : (chainServiceInfo?.balance || 0);
+
       setLineraConnected(connected);
       setLineraAddress(addr);
       setLineraBalance(bal);
@@ -148,8 +160,8 @@ export function WalletStatusProvider({ children }) {
     // Check immediately
     checkLineraWallet();
 
-    // Listen for Linera wallet changes
-    const unsubscribe = lineraWalletService.addListener((event, data) => {
+    // Listen for Linera wallet changes (lineraWalletService)
+    const unsubscribe1 = lineraWalletService.addListener((event, data) => {
       if (event === 'connected') {
         setLineraConnected(true);
         setLineraAddress(data?.address);
@@ -164,9 +176,41 @@ export function WalletStatusProvider({ children }) {
           window.dispatchEvent(new Event('storage'));
         }
       } else if (event === 'disconnected') {
-        setLineraConnected(false);
-        setLineraAddress(null);
-        setLineraBalance(0);
+        // Only set disconnected if chainService is also disconnected
+        if (!lineraChainService.checkConnection()) {
+          setLineraConnected(false);
+          setLineraAddress(null);
+          setLineraBalance(0);
+        }
+      } else if (event === 'balanceChanged') {
+        const newBal = data?.balance || 0;
+        setLineraBalance(newBal);
+        localStorage.setItem('userBalance', newBal.toString());
+        window.dispatchEvent(new Event('storage'));
+      }
+    });
+
+    // Listen for Linera chain service changes (Croissant/demo mode)
+    const unsubscribe2 = lineraChainService.addListener((event, data) => {
+      if (event === 'connected') {
+        setLineraConnected(true);
+        setLineraAddress(data?.owner);
+        const bal = data?.balance || 0;
+        setLineraBalance(bal);
+
+        // Sync balance to localStorage
+        if (bal > 0) {
+          localStorage.setItem('userBalance', bal.toString());
+          console.log('LineraChainService connected - synced balance:', bal);
+          window.dispatchEvent(new Event('storage'));
+        }
+      } else if (event === 'disconnected') {
+        // Only set disconnected if walletService is also disconnected
+        if (!lineraWalletService.isConnected()) {
+          setLineraConnected(false);
+          setLineraAddress(null);
+          setLineraBalance(0);
+        }
       } else if (event === 'balanceChanged') {
         const newBal = data?.balance || 0;
         setLineraBalance(newBal);
@@ -179,15 +223,33 @@ export function WalletStatusProvider({ children }) {
     const interval = setInterval(checkLineraWallet, 1000);
 
     return () => {
-      unsubscribe();
+      unsubscribe1();
+      unsubscribe2();
       clearInterval(interval);
     };
   }, []);
 
-  // Use dev wallet in dev mode, otherwise use Linera wallet
-  const isConnected = isDev ? devWallet.isConnected : lineraConnected;
-  const address = isDev ? devWallet.address : lineraAddress;
-  const chain = isDev ? devWallet.chain : (lineraConnected ? { id: 'linera_testnet', name: 'Linera Conway Testnet' } : null);
+  // Check for demo mode in production (from localStorage)
+  const [demoModeConnected, setDemoModeConnected] = useState(false);
+  const [demoModeAddress, setDemoModeAddress] = useState(null);
+
+  useEffect(() => {
+    // Check for demo wallet state in production
+    if (!isDev) {
+      const demoState = localStorage.getItem('demo-wallet-state');
+      const demoOwner = localStorage.getItem('demo-wallet-owner');
+
+      if (demoState === 'connected' && demoOwner) {
+        setDemoModeConnected(true);
+        setDemoModeAddress(demoOwner);
+      }
+    }
+  }, [isDev, lineraConnected]);
+
+  // Use dev wallet in dev mode, otherwise use Linera wallet or demo mode
+  const isConnected = isDev ? devWallet.isConnected : (lineraConnected || demoModeConnected);
+  const address = isDev ? devWallet.address : (lineraAddress || demoModeAddress);
+  const chain = isDev ? devWallet.chain : ((lineraConnected || demoModeConnected) ? { id: 'linera_testnet', name: 'Linera Conway Testnet' } : null);
 
   const currentStatus = {
     isConnected,
