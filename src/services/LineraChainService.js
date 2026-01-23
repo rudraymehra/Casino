@@ -60,7 +60,7 @@ class LineraChainService {
   }
 
   /**
-   * Initialize - check for wallet extension or restore dev mode state
+   * Initialize - check for wallet extension or restore dev/demo mode state
    */
   async initialize() {
     if (typeof window === 'undefined') {
@@ -92,6 +92,27 @@ class LineraChainService {
       }
     }
 
+    // Check for existing demo mode state in production
+    const demoWalletState = localStorage.getItem('demo-wallet-state');
+    if (demoWalletState === 'connected') {
+      const savedOwner = localStorage.getItem('demo-wallet-owner');
+      const savedBalance = localStorage.getItem('userBalance');
+
+      if (savedOwner) {
+        this.demoMode = true;
+        this.isConnected = true;
+        this.owner = savedOwner;
+        this.chainId = process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'demo-chain';
+        this.balance = savedBalance ? parseFloat(savedBalance) : this.WELCOME_BONUS;
+
+        console.log('✅ DEMO MODE: Restored previous session');
+        console.log(`   Owner: ${this.owner}`);
+        console.log(`   Balance: ${this.balance} LINERA`);
+
+        return true;
+      }
+    }
+
     // Wait a bit for extension to inject
     await this._waitForWallet(1000);
 
@@ -99,12 +120,9 @@ class LineraChainService {
       console.warn('⚠️ Linera wallet extension not detected');
       console.warn('   Install Croissant: https://github.com/Nirajsah/croissant');
 
-      // In dev mode, return true anyway (we're using demo mode)
-      if (isDev) {
-        console.log('📱 DEV MODE: Enabling demo wallet');
-        return true;
-      }
-      return false;
+      // In production without wallet, enable demo mode to allow gameplay
+      console.log('📱 Enabling DEMO MODE for gameplay');
+      return true;
     }
 
     this.provider = window.linera;
@@ -134,7 +152,7 @@ class LineraChainService {
 
   /**
    * Connect to wallet - requests user approval
-   * Falls back to demo mode if wallet not available
+   * Falls back to demo mode if wallet not available or connection fails
    */
   async connectWallet() {
     // Try to initialize wallet
@@ -149,10 +167,19 @@ class LineraChainService {
     try {
       console.log('🔗 Requesting wallet connection...');
 
-      // Request wallet connection - this will show approval popup
-      const response = await this.provider.request({
-        type: 'CONNECT_WALLET',
+      // Create a timeout promise to handle unresponsive extensions
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Wallet connection timeout')), 5000);
       });
+
+      // Request wallet connection - this will show approval popup
+      // Race against timeout to handle unresponsive wallet extensions
+      const response = await Promise.race([
+        this.provider.request({
+          type: 'CONNECT_WALLET',
+        }),
+        timeoutPromise,
+      ]);
 
       if (!response || response.error) {
         // Fall back to demo mode if connection rejected
@@ -188,7 +215,18 @@ class LineraChainService {
 
       return this.getConnectionInfo();
     } catch (error) {
-      console.error('❌ Wallet connection failed, falling back to demo mode:', error);
+      // Handle Chrome runtime errors (extension not responding)
+      const isRuntimeError = error.message?.includes('Could not establish connection') ||
+                             error.message?.includes('Receiving end does not exist') ||
+                             error.message?.includes('timeout') ||
+                             error.message?.includes('Extension context invalidated');
+
+      if (isRuntimeError) {
+        console.warn('⚠️ Wallet extension not responding (background script may be inactive)');
+        console.log('💡 Tip: Try refreshing the page or reloading the wallet extension');
+      }
+
+      console.error('❌ Wallet connection failed, falling back to demo mode:', error.message);
       return this._connectDemoMode();
     }
   }
@@ -199,9 +237,23 @@ class LineraChainService {
   _connectDemoMode() {
     this.demoMode = true;
     this.isConnected = true;
-    this.owner = 'demo_' + Math.random().toString(36).substring(2, 10);
+
+    // Try to restore existing demo owner, or create new one
+    const existingOwner = localStorage.getItem('demo-wallet-owner');
+    this.owner = existingOwner || 'demo_' + Math.random().toString(36).substring(2, 10);
+
     this.chainId = process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'demo-chain';
-    this.balance = this.WELCOME_BONUS;
+
+    // Restore or set initial balance
+    const savedBalance = localStorage.getItem('userBalance');
+    this.balance = savedBalance ? parseFloat(savedBalance) : this.WELCOME_BONUS;
+
+    // Persist demo mode state for page refreshes
+    localStorage.setItem('demo-wallet-state', 'connected');
+    localStorage.setItem('demo-wallet-owner', this.owner);
+    if (!savedBalance || parseFloat(savedBalance) <= 0) {
+      localStorage.setItem('userBalance', this.balance.toString());
+    }
 
     console.log('🎮 Connected in DEMO MODE');
     console.log(`   Demo Owner: ${this.owner}`);
@@ -817,6 +869,11 @@ class LineraChainService {
     this.owner = null;
     this.chainId = null;
     this.balance = 0;
+    this.demoMode = false;
+
+    // Clear demo mode state from localStorage
+    localStorage.removeItem('demo-wallet-state');
+    localStorage.removeItem('demo-wallet-owner');
 
     this._notifyListeners('disconnected', null);
     console.log('Wallet disconnected');
@@ -887,5 +944,6 @@ const lineraChainService = new LineraChainService();
 
 export { lineraChainService, LineraChainService, LINERA_CONFIG, GameType };
 export default lineraChainService;
+
 
 
