@@ -36,6 +36,9 @@ export default function LineraConnectButton() {
 
   const balance = displayBalance;
 
+  // Consider connected if we have balance OR if isConnected is true
+  const effectivelyConnected = isConnected || balance > 0;
+
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFaucetLoading, setIsFaucetLoading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -133,7 +136,7 @@ export default function LineraConnectButton() {
     return `${cleanAddr.substring(0, 6)}...${cleanAddr.substring(cleanAddr.length - 4)}`;
   };
 
-  if (isConnected) {
+  if (effectivelyConnected) {
     return (
       <>
         <div className="relative">
