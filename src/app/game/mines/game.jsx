@@ -356,16 +356,15 @@ const Game = ({ betSettings = {}, onGameStatusChange, onGameComplete }) => {
       
       // Place bet using Redux balance
       const startGameWithBet = async () => {
-        // Check if wallet is connected first
-        console.log('🔌 Mines Bet - Wallet Status:', { isConnected, userBalance });
-        if (!isConnected) {
-          toast.error('Please connect your Ethereum wallet first to play Mines!');
+        // Check Redux balance - if user has balance, they can play
+        const currentBalance = parseFloat(userBalance || '0');
+        console.log('🔌 Mines Bet - Balance:', { currentBalance, betAmount: settings.betAmount });
+
+        if (currentBalance <= 0) {
+          toast.error('Please connect your wallet and get some tokens to play!');
           return;
         }
-        
-        // Check Redux balance PC)
-        const currentBalance = parseFloat(userBalance || '0');
-        
+
         if (currentBalance < parseFloat(settings.betAmount)) {
           toast.error(`Insufficient balance. You have ${currentBalance.toFixed(5)} PC but need ${parseFloat(settings.betAmount)} PC`);
           return;

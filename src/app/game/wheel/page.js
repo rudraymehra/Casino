@@ -86,10 +86,12 @@ export default function Home() {
   const manulBet = async () => {
     if (betAmount <= 0 || isSpinning) return;
 
-    // Check if wallet is connected first
-    console.log('🔌 Wheel Bet - Wallet Status:', { isConnected, userBalance });
-    if (!isConnected) {
-      alert("Please connect your Linera wallet first to play Wheel!");
+    // Check balance - if user has balance, they can play
+    const currentBalance = parseFloat(userBalance || '0');
+    console.log('🔌 Wheel Bet - Balance:', { currentBalance, betAmount });
+
+    if (currentBalance <= 0) {
+      alert("Please connect your wallet and get some tokens to play!");
       return;
     }
 
@@ -358,9 +360,10 @@ export default function Home() {
     risk,
     noOfSegments,
   }) => {
-    // Check if wallet is connected first
-    if (!isConnected) {
-      alert('Please connect your Linera wallet first to play Wheel!');
+    // Check balance - if user has balance, they can play
+    const currentBalance = parseFloat(userBalance || '0');
+    if (currentBalance <= 0) {
+      alert('Please connect your wallet and get some tokens to play!');
       return;
     }
     

@@ -111,14 +111,12 @@ export default function GameControls({ onBet, onRowChange, onRiskLevelChange, on
   };
 
   const handleBet = () => {
-    // Check if wallet is connected
-    console.log('🔌 Plinko Bet - Wallet Status:', {
-      isConnected,
-      userBalance,
-      windowLinera: !!window.linera
-    });
-    if (!isConnected) {
-      alert("Please connect your Linera wallet first to play Plinko!");
+    // Check balance - if user has balance, they can play
+    const currentBalance = parseFloat(userBalance || '0');
+    console.log('🔌 Plinko Bet - Balance:', { currentBalance, betAmount });
+
+    if (currentBalance <= 0) {
+      alert("Please connect your wallet and get some tokens to play!");
       return;
     }
     
@@ -319,20 +317,18 @@ export default function GameControls({ onBet, onRowChange, onRiskLevelChange, on
 
   // Check if user has sufficient balance for current bet
   const hasSufficientBalance = () => {
-    if (!isConnected) return false;
     const betValue = parseFloat(betAmount);
-    const currentBalance = parseFloat(userBalance);
-    return betValue <= currentBalance && betValue >= 0.001;
+    const currentBalance = parseFloat(userBalance || '0');
+    return currentBalance > 0 && betValue <= currentBalance && betValue >= 0.001;
   };
 
   // Check if user has sufficient balance for auto betting
   const hasSufficientBalanceForAutoBet = () => {
-    if (!isConnected) return false;
     const betValue = parseFloat(betAmount);
     const totalBets = parseInt(numberOfBets) || 1;
     const totalBetAmount = totalBets * betValue;
-    const currentBalance = parseFloat(userBalance);
-    return totalBetAmount <= currentBalance && betValue >= 0.001;
+    const currentBalance = parseFloat(userBalance || '0');
+    return currentBalance > 0 && totalBetAmount <= currentBalance && betValue >= 0.001;
   };
 
   // Get current balance in PC for display
@@ -565,7 +561,7 @@ export default function GameControls({ onBet, onRowChange, onRiskLevelChange, on
           {/* Current Balance Display */}
           <div className="text-center p-3 bg-[#2A0025] rounded-lg border border-[#333947]">
             <span className="text-sm text-gray-400">Current Balance:</span>
-            {isConnected ? (
+            {parseFloat(userBalance || '0') > 0 ? (
               <div className="text-lg font-bold text-green-400">{getCurrentBalanceInPC()} PC</div>
             ) : (
               <div className="text-lg font-bold text-red-400">Connect Wallet</div>
