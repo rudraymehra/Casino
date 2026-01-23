@@ -229,9 +229,7 @@ export default function Home() {
     }
   };
 
-    // Check Redux balance (balance is already in PC)
-    const currentBalance = parseFloat(userBalance || '0');
-    
+    // Balance already checked above, proceed with bet
     if (currentBalance < betAmount) {
       alert(`Insufficient balance. You have ${currentBalance.toFixed(5)} PC but need ${betAmount} PC`);
       return;
