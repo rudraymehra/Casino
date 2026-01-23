@@ -1603,20 +1603,19 @@ export default function GameRoulette() {
   };
 
   const lockBet = async () => {
-    // Check if wallet is connected
-    if (!isConnected) {
-      alert("Please connect your Linera wallet first to play Roulette!");
-      return;
-    }
-
     if (total <= 0) {
       alert("Please place a bet first");
       return;
     }
 
-    // Check Redux balance instead of wallet
+    // Check Redux balance - if user has balance, they can play
     const currentBalance = parseFloat(userBalance || '0'); // Balance is already in PC
     const totalBetAmount = total;
+
+    if (currentBalance <= 0) {
+      alert("Please connect your wallet and get some tokens to play!");
+      return;
+    }
 
     if (currentBalance < totalBetAmount) {
       alert(`Insufficient balance. You have ${currentBalance.toFixed(5)} PC but need ${totalBetAmount.toFixed(5)} PC`);
@@ -2964,30 +2963,14 @@ export default function GameRoulette() {
                 </Typography>
               </Box>
 
-              {!isConnected ? (
+              {parseFloat(userBalance || '0') <= 0 ? (
                 <Box sx={{ textAlign: 'center', py: 1 }}>
-                  <Button
-                    onClick={() => {
-                      if (window.linera) {
-                        window.linera.request({ type: 'CONNECT_WALLET' });
-                      } else {
-                        alert('Please install the Croissant wallet extension for Linera');
-                        window.open('https://linera.io/wallet', '_blank');
-                      }
-                    }}
-                    sx={{
-                      background: 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)',
-                      color: 'white',
-                      px: 2,
-                      py: 1,
-                      fontSize: '0.8rem',
-                      '&:hover': {
-                        background: 'linear-gradient(135deg, #2563EB 0%, #0891B2 100%)',
-                      }
-                    }}
-                  >
-                    Connect Linera Wallet
-                  </Button>
+                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>
+                    Connect wallet from navbar
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                    Click the wallet button above
+                  </Typography>
                 </Box>
               ) : (
                 <Box>
