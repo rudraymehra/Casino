@@ -6,14 +6,15 @@ const loadInitialState = () => {
     const savedBalance = localStorage.getItem('userBalance');
     const savedLoading = localStorage.getItem('isLoading');
 
-    // Check for Linera wallet connection (dev mode or actual connection)
+    // Check for Linera wallet connection (dev mode, demo mode, or actual connection)
     const devWalletState = localStorage.getItem('dev-wallet-state');
+    const demoWalletState = localStorage.getItem('demo-wallet-state');
     const lineraWalletState = localStorage.getItem('linera_wallet_state');
     const isDev = process.env.NODE_ENV === 'development';
 
     // In dev mode, always allow balance restoration
-    // Otherwise check if Linera wallet was connected
-    const walletConnected = isDev || devWalletState === 'connected' || !!lineraWalletState;
+    // Otherwise check if Linera wallet was connected (including demo mode in production)
+    const walletConnected = isDev || devWalletState === 'connected' || demoWalletState === 'connected' || !!lineraWalletState;
 
     let cleanBalance = "0";
     if (savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {

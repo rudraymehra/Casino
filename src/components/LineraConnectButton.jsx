@@ -8,7 +8,7 @@ import { hasStoredWallet } from '@/utils/lineraWalletCrypto';
 
 export default function LineraConnectButton() {
   const {
-    isConnected,
+    isConnected: hookIsConnected,
     isConnecting,
     address,
     balance: lineraBalance,
@@ -23,6 +23,25 @@ export default function LineraConnectButton() {
   // Use Redux balance to stay in sync with game balance
   const { userBalance } = useSelector((state) => state.balance);
   const [displayBalance, setDisplayBalance] = useState(0);
+
+  // Check localStorage for persisted demo connection state
+  const [persistedConnection, setPersistedConnection] = useState(false);
+
+  useEffect(() => {
+    // Check if we have a persisted demo connection
+    const demoState = localStorage.getItem('demo-wallet-state');
+    const demoOwner = localStorage.getItem('demo-wallet-owner');
+    const savedBalance = localStorage.getItem('userBalance');
+
+    if (demoState === 'connected' && demoOwner && savedBalance && parseFloat(savedBalance) > 0) {
+      setPersistedConnection(true);
+    } else {
+      setPersistedConnection(false);
+    }
+  }, [hookIsConnected, userBalance]);
+
+  // Consider connected if hook says so OR if we have persisted state
+  const isConnected = hookIsConnected || persistedConnection;
 
   // Sync display balance with game balance (PC balance)
   useEffect(() => {
@@ -101,6 +120,9 @@ export default function LineraConnectButton() {
   const handleDisconnect = useCallback(async () => {
     try {
       await disconnect();
+      // Also clear persisted state
+      setPersistedConnection(false);
+      setDisplayBalance(0);
       setShowDropdown(false);
     } catch (err) {
       console.error("Failed to disconnect Linera wallet:", err);
