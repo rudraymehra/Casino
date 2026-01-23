@@ -392,7 +392,13 @@ class LineraWalletService {
         const state = JSON.parse(savedState);
         this.balance = state.balance || 1000;
       } else {
-        this.balance = 1000;
+        // Fallback to userBalance if linera_wallet_state was cleared
+        const userBalance = localStorage.getItem('userBalance');
+        if (userBalance && parseFloat(userBalance) > 0) {
+          this.balance = parseFloat(userBalance);
+        } else {
+          this.balance = 1000;
+        }
       }
       console.log(`Wallet unlocked with balance: ${this.balance} LINERA`);
 
@@ -576,6 +582,12 @@ class LineraWalletService {
    * Disconnect wallet
    */
   async disconnect() {
+    // Save balance to userBalance before clearing wallet state
+    // So it can be restored when reconnecting
+    if (typeof window !== 'undefined' && this.balance > 0) {
+      localStorage.setItem('userBalance', this.balance.toString());
+    }
+
     this.userOwner = null;
     this.userAddress = null;
     this.connectedChain = null;
