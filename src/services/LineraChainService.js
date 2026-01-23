@@ -871,12 +871,14 @@ class LineraChainService {
     this.balance = 0;
     this.demoMode = false;
 
-    // Clear demo mode state from localStorage
+    // Clear ALL wallet state from localStorage
     localStorage.removeItem('demo-wallet-state');
     localStorage.removeItem('demo-wallet-owner');
+    localStorage.removeItem('userBalance');
+    localStorage.removeItem('dev-wallet-state');
 
     this._notifyListeners('disconnected', null);
-    console.log('Wallet disconnected');
+    console.log('Wallet disconnected - all state cleared');
   }
 
   /**
