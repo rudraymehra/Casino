@@ -1,10 +1,15 @@
 /**
  * Linera Wallet React Hooks
  * Provides wallet connection, balance tracking, and game operations
+ * 
+ * Now supports both:
+ * 1. LineraWalletService (MetaMask/CheCko bridge)
+ * 2. LineraChainService (direct @linera/client SDK)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { lineraWalletService, GAME_TYPES, LINERA_CONFIG } from '../services/LineraWalletService';
+import { lineraChainService } from '../services/LineraChainService';
 
 /**
  * Main wallet connection hook
