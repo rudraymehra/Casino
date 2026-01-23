@@ -123,6 +123,9 @@ const WithdrawModal = ({ isOpen, onClose }) => {
       const newBalanceOctas = currentBalanceOctas - amountOctas;
       dispatch(setBalance(newBalanceOctas.toString()));
 
+      // Also update LineraWalletService balance to keep it in sync
+      lineraWalletService.setBalance(newBalanceOctas / 100000000);
+
       setStep('success');
       toast.success(`Successfully withdrew ${amount} LINERA! TX: ${result.transactionHash?.slice(0, 8) || 'pending'}...`);
 

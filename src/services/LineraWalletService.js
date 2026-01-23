@@ -618,6 +618,21 @@ class LineraWalletService {
   }
 
   /**
+   * Set balance and persist to localStorage
+   * @param {number} newBalance - The new balance to set
+   */
+  setBalance(newBalance) {
+    this.balance = Math.max(0, newBalance);
+    this._persistState();
+    this._notifyListeners('balanceChanged', { balance: this.balance });
+    // Also sync with userBalance in localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('userBalance', this.balance.toString());
+    }
+    console.log('Balance updated:', this.balance);
+  }
+
+  /**
    * Generate commit-reveal pair for provably fair gaming
    */
   generateRandomCommit() {
