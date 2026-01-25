@@ -1,4 +1,12 @@
 {
   "buildCommand": "npm run build",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_LINERA_RPC": "https://rpc.testnet-conway.linera.net",
+    "NEXT_PUBLIC_LINERA_FAUCET": "https://faucet.testnet-conway.linera.net",
+    "NEXT_PUBLIC_LINERA_EXPLORER": "https://explorer.testnet-conway.linera.net",
+    "NEXT_PUBLIC_NETWORK": "linera-conway-testnet",
+    "NEXT_PUBLIC_APP_ENV": "production",
+    "NEXT_PUBLIC_DEBUG_MODE": "false"
+  }
 }
