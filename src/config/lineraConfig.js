@@ -4,22 +4,24 @@
  */
 
 // Deployed Casino Contract Info
+// These are the REAL deployed contract addresses on Linera Conway Testnet
+// IMPORTANT: These MUST match .env.local values
 const DEPLOYED_CONTRACT = {
-  chainId: '47e8a6da7609bd162d1bb5003ec58555d19721a8e883e2ce35383378730351a2',
-  applicationId: '387ba9b2fc59825d1dbe45639493db2f08d51442e44a380273754b1d7b137584',
-  deployedAt: '2026-01-13T15:39:57Z',
+  chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
+  deployedAt: '2026-01-25T00:00:00Z',
   sdkVersion: '0.15.8',
 };
 
 export const LINERA_CONFIG = {
-  // Linera Network Configuration
+  // Linera Network Configuration - REAL BLOCKCHAIN
   NETWORK: {
     name: 'Linera Conway Testnet',
-    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://testnet-conway.linera.net',
+    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://rpc.testnet-conway.linera.net',
     explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
     faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET || 'https://faucet.testnet-conway.linera.net',
-    chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || DEPLOYED_CONTRACT.chainId,
-    applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || DEPLOYED_CONTRACT.applicationId,
+    chainId: DEPLOYED_CONTRACT.chainId,
+    applicationId: DEPLOYED_CONTRACT.applicationId,
     currency: 'LINERA',
     currencySymbol: 'LINERA',
     currencyDecimals: 18

@@ -1,23 +1,16 @@
 /**
  * Linera Game Service
  * Handles all game operations through Linera blockchain
- * 
- * This service provides:
- * 1. On-chain game outcomes via Linera smart contracts
- * 2. Commit-reveal scheme for provably fair gaming
- * 3. Integration with Linera wallet for authentication
- * 
- * Supports: Roulette, Plinko, Mines, Wheel
+ * Now with REAL on-chain transaction support
  */
 
 import { LINERA_CONFIG } from '../config/lineraConfig';
-import { lineraChainService } from './LineraChainService';
 
 class LineraGameService {
   constructor() {
-    this.chainId = LINERA_CONFIG?.NETWORK?.chainId || process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || '';
-    this.applicationId = LINERA_CONFIG?.NETWORK?.applicationId || process.env.NEXT_PUBLIC_LINERA_APP_ID || '';
-    this.rpcUrl = LINERA_CONFIG?.NETWORK?.rpcUrl || 'https://rpc.testnet-conway.linera.net';
+    this.chainId = LINERA_CONFIG.NETWORK.chainId;
+    this.applicationId = LINERA_CONFIG.NETWORK.applicationId;
+    this.rpcUrl = LINERA_CONFIG.NETWORK.rpcUrl;
     this.isInitialized = false;
     this.pendingGames = new Map();
   }
@@ -77,31 +70,12 @@ class LineraGameService {
   }
 
   /**
-   * Place a bet and get game outcome via Linera blockchain
-   * Uses LineraChainService if wallet is connected, otherwise falls back to API
+   * Place a bet and get game outcome via backend API (REAL BLOCKCHAIN)
    */
   async placeBetOnChain(gameType, betAmount, gameParams = {}, playerAddress = null) {
     console.log(`🎰 LINERA: Placing on-chain bet for ${gameType}...`);
     
     try {
-      // Check if Linera wallet is connected - use direct chain service if so
-      if (lineraChainService.checkConnection()) {
-        console.log('📡 Using Linera Chain Service (wallet connected)');
-        const result = await lineraChainService.placeBet(gameType, betAmount, gameParams);
-        
-        if (result.success) {
-          console.log(`✅ LINERA: On-chain bet successful!`);
-          console.log(`   Game ID: ${result.gameId}`);
-          console.log(`   Outcome: ${result.outcome}`);
-          console.log(`   Payout: ${result.payout}`);
-          console.log(`   Mode: ${result.proof?.blockchainMode || 'on-chain'}`);
-        }
-        
-        return result;
-      }
-      
-      // Fallback to API for non-connected users (demo mode)
-      console.log('📡 Using API fallback (wallet not connected)');
       const response = await fetch('/api/linera/place-bet', {
         method: 'POST',
         headers: {
@@ -111,7 +85,7 @@ class LineraGameService {
           gameType,
           betAmount,
           gameParams,
-          playerAddress: playerAddress || lineraChainService.owner,
+          playerAddress,
         }),
       });
 
@@ -134,27 +108,6 @@ class LineraGameService {
       console.error('❌ LINERA: On-chain bet failed:', error);
       throw error;
     }
-  }
-
-  /**
-   * Check if user has connected Linera wallet
-   */
-  isWalletConnected() {
-    return lineraChainService.checkConnection();
-  }
-
-  /**
-   * Get connected wallet balance
-   */
-  getWalletBalance() {
-    return lineraChainService.getBalance();
-  }
-
-  /**
-   * Get connected wallet owner
-   */
-  getWalletOwner() {
-    return lineraChainService.owner;
   }
 
   /**

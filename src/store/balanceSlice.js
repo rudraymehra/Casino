@@ -1,36 +1,28 @@
 import { createSlice } from '@reduxjs/toolkit';
 
+/**
+ * Balance Slice - PRODUCTION READY
+ * Balance is ONLY set from actual blockchain operations (faucet claims, game results)
+ * NO free tokens, NO dev mode bypasses
+ */
+
 // Load initial state from localStorage
 const loadInitialState = () => {
   if (typeof window !== 'undefined') {
     const savedBalance = localStorage.getItem('userBalance');
-    const savedLoading = localStorage.getItem('isLoading');
-
-    // Check for Linera wallet connection (dev mode, demo mode, or actual connection)
-    const devWalletState = localStorage.getItem('dev-wallet-state');
-    const demoWalletState = localStorage.getItem('demo-wallet-state');
     const lineraWalletState = localStorage.getItem('linera_wallet_state');
-    const isDev = process.env.NODE_ENV === 'development';
 
-    // In dev mode, always allow balance restoration
-    // Otherwise check if Linera wallet was connected (including demo mode in production)
-    const walletConnected = isDev || devWalletState === 'connected' || demoWalletState === 'connected' || !!lineraWalletState;
-
+    // Only restore balance if there's a valid wallet state
     let cleanBalance = "0";
-    if (savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {
+    if (lineraWalletState && savedBalance && !isNaN(savedBalance) && parseFloat(savedBalance) >= 0) {
       cleanBalance = savedBalance;
     }
 
-    // In dev mode with no balance, set demo balance
-    if (isDev && (!cleanBalance || parseFloat(cleanBalance) <= 0)) {
-      cleanBalance = "1000";
-      localStorage.setItem('userBalance', cleanBalance);
-      console.log('DEV MODE: Initialized demo balance to 1000 LINERA');
-    }
+    // NO FREE TOKENS - balance must come from blockchain (faucet or games)
 
     return {
       userBalance: cleanBalance,
-      isLoading: savedLoading === 'true' || false,
+      isLoading: false,
     };
   }
   return {
@@ -81,15 +73,18 @@ const balanceSlice = createSlice({
     },
     setLoading(state, action) {
       state.isLoading = action.payload;
-      // Persist to localStorage
+    },
+    // Reset balance to 0 (for logout/disconnect)
+    resetBalance(state) {
+      state.userBalance = "0";
       if (typeof window !== 'undefined') {
-        localStorage.setItem('isLoading', action.payload.toString());
+        localStorage.removeItem('userBalance');
       }
     },
   },
 });
 
-export const { setBalance, addToBalance, subtractFromBalance, setLoading } = balanceSlice.actions;
+export const { setBalance, addToBalance, subtractFromBalance, setLoading, resetBalance } = balanceSlice.actions;
 
 // Utility functions for localStorage operations
 export const loadBalanceFromStorage = () => {

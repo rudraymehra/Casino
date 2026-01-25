@@ -1,11 +1,9 @@
 /**
- * Withdraw API - Processes withdrawals from the casino
- * This endpoint processes withdrawals via Linera GraphQL mutations
+ * Withdraw API - Processes REAL withdrawals on Linera blockchain
+ * Makes actual GraphQL mutations to the casino contract
  *
- * Linera Config:
- * - Chain ID: d971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd
- * - App ID: e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194
- * - Explorer: https://explorer.testnet-conway.linera.net
+ * Linera Config loaded from environment variables (.env.local)
+ * Explorer: https://explorer.testnet-conway.linera.net
  */
 
 import { NextResponse } from 'next/server';
@@ -13,10 +11,11 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Linera Configuration
+// Linera Configuration - MUST match .env.local
 const LINERA_CONFIG = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
   applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
+  rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://rpc.testnet-conway.linera.net',
   explorerUrl: 'https://explorer.testnet-conway.linera.net',
 };
 
@@ -25,24 +24,108 @@ const MIN_WITHDRAW = 0.001; // Minimum 0.001 LINERA
 const MAX_WITHDRAW = 5000;   // Maximum 5000 LINERA
 
 /**
+ * Make GraphQL request to Linera node
+ * Note: Linera mutations return a block hash string, not a structured response
+ */
+async function lineraGraphQL(endpoint, query, variables = {}, isMutation = false) {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Linera GraphQL failed: ${response.status} - ${text}`);
+  }
+
+  const result = await response.json();
+
+  if (result.errors) {
+    throw new Error(`Linera GraphQL error: ${result.errors.map(e => e.message).join(', ')}`);
+  }
+
+  // For mutations, Linera returns the block hash as a string
+  if (isMutation && typeof result.data === 'string') {
+    return { blockHash: result.data, success: true };
+  }
+
+  return result.data;
+}
+
+/**
+ * Get application GraphQL endpoint
+ */
+function getAppEndpoint() {
+  return `${LINERA_CONFIG.rpcUrl}/chains/${LINERA_CONFIG.chainId}/applications/${LINERA_CONFIG.applicationId}`;
+}
+
+/**
+ * Execute withdrawal on the casino smart contract
+ * Contract schema: withdraw(amount: String): Boolean
+ * Note: Linera mutations return block hash on success
+ */
+async function executeContractWithdraw(amount, playerOwner) {
+  const endpoint = getAppEndpoint();
+  const amountAttos = Math.floor(amount * 1e18).toString();
+
+  console.log(`📝 Executing contract withdrawal: ${amount} LINERA (${amountAttos} attos)`);
+  console.log(`   Endpoint: ${endpoint}`);
+  console.log(`   Player: ${playerOwner}`);
+
+  // Call the withdraw mutation on the casino contract
+  const mutation = `
+    mutation Withdraw($amount: String!) {
+      withdraw(amount: $amount)
+    }
+  `;
+
+  const data = await lineraGraphQL(endpoint, mutation, { amount: amountAttos }, true);
+  return data;
+}
+
+/**
+ * Query player balance from contract
+ * Contract schema: playerBalance(owner: String): String
+ */
+async function queryPlayerBalance(playerOwner) {
+  const endpoint = getAppEndpoint();
+
+  const query = `
+    query GetBalance($owner: String!) {
+      playerBalance(owner: $owner)
+    }
+  `;
+
+  try {
+    const data = await lineraGraphQL(endpoint, query, { owner: playerOwner });
+    return parseFloat(data.playerBalance || '0') / 1e18;
+  } catch (error) {
+    console.error('Failed to query balance:', error);
+    return null;
+  }
+}
+
+/**
  * Validate Linera owner ID format
- * Linera owner IDs are 64-character hex strings
  */
 function isValidLineraOwner(owner) {
   if (!owner || typeof owner !== 'string') return false;
-  // Linera owner IDs are hex strings, typically 64 chars
-  return /^[0-9a-fA-F]{64}$/.test(owner);
+  return /^[0-9a-fA-F]{64}$/.test(owner) || owner.startsWith('0x');
 }
 
 export async function POST(request) {
+  const startTime = Date.now();
+
   try {
     const body = await request.json();
     const { userAddress, amount, lineraOwner, chainId } = body;
 
-    // Use lineraOwner if provided, otherwise fall back to userAddress
     const owner = lineraOwner || userAddress;
 
-    console.log('📥 Withdraw request received:', { owner: owner?.slice(0, 16) + '...', amount });
+    console.log('📥 Withdraw request:', { owner: owner?.slice(0, 16) + '...', amount });
 
     // Validate request
     if (!owner) {
@@ -76,41 +159,87 @@ export async function POST(request) {
       );
     }
 
-    // Validate owner format (optional - allow flexible formats during development)
-    if (owner.length >= 64 && !isValidLineraOwner(owner)) {
-      console.warn('Owner ID may not be in standard Linera format:', owner.slice(0, 20) + '...');
+    // Validate owner format
+    if (!isValidLineraOwner(owner)) {
+      console.warn('Owner ID format warning:', owner.slice(0, 20) + '...');
     }
 
-    console.log(`💸 Processing Linera withdrawal: ${withdrawAmount} LINERA to ${owner.slice(0, 16)}...`);
+    console.log(`💸 Processing Linera withdrawal: ${withdrawAmount} LINERA`);
 
-    // Generate withdrawal record
-    // In production, this would execute a Linera GraphQL mutation via the casino application
-    const withdrawalId = `wd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // ============================================
+    // REAL BLOCKCHAIN TRANSACTION
+    // ============================================
+
+    let transactionResult;
+    let blockchainSuccess = false;
+    let newBalance = null;
+
+    try {
+      // First query current balance to verify
+      const currentBalance = await queryPlayerBalance(owner);
+      console.log(`   Current balance: ${currentBalance} LINERA`);
+
+      if (currentBalance !== null && currentBalance < withdrawAmount) {
+        return NextResponse.json(
+          { success: false, error: `Insufficient balance. You have ${currentBalance} LINERA` },
+          { status: 400 }
+        );
+      }
+
+      // Execute the actual withdrawal on the contract (returns block hash on success)
+      transactionResult = await executeContractWithdraw(withdrawAmount, owner);
+
+      if (!transactionResult.success && !transactionResult.blockHash) {
+        throw new Error('Withdraw operation failed on contract');
+      }
+
+      blockchainSuccess = true;
+      // Note: Contract returns boolean, we estimate new balance
+      newBalance = currentBalance !== null ? currentBalance - withdrawAmount : null;
+
+      console.log(`✅ Blockchain withdrawal successful!`);
+      console.log(`   Withdrawn: ${withdrawAmount} LINERA`);
+
+    } catch (blockchainError) {
+      console.error('❌ Blockchain transaction failed:', blockchainError.message);
+
+      // Return error - don't fake success
+      return NextResponse.json({
+        success: false,
+        error: `Blockchain transaction failed: ${blockchainError.message}`,
+        details: {
+          endpoint: getAppEndpoint(),
+          chainId: LINERA_CONFIG.chainId,
+          applicationId: LINERA_CONFIG.applicationId,
+        }
+      }, { status: 500 });
+    }
+
+    // Generate transaction ID from timestamp
+    const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const targetChainId = chainId || LINERA_CONFIG.chainId;
 
-    // Simulated withdrawal processing
-    // The actual withdrawal would be processed by the Linera smart contract
-    const withdrawalRecord = {
-      id: withdrawalId,
-      owner,
-      amount: withdrawAmount,
-      chainId: targetChainId,
-      applicationId: LINERA_CONFIG.applicationId,
-      timestamp: new Date().toISOString(),
-      status: 'confirmed',
-    };
-
-    console.log(`✅ Linera withdrawal processed:`, withdrawalRecord);
+    const processingTime = Date.now() - startTime;
 
     return NextResponse.json({
       success: true,
-      withdrawalId: withdrawalRecord.id,
+      transactionId,
       amount: withdrawAmount,
+      newBalance,
       owner,
       chainId: targetChainId,
       applicationId: LINERA_CONFIG.applicationId,
       explorerUrl: `${LINERA_CONFIG.explorerUrl}/chains/${targetChainId}`,
       message: `Successfully withdrew ${withdrawAmount} LINERA`,
+
+      // Blockchain proof
+      blockchain: {
+        submitted: blockchainSuccess,
+        chainId: targetChainId,
+        applicationId: LINERA_CONFIG.applicationId,
+        endpoint: getAppEndpoint(),
+        processingTimeMs: processingTime,
+      }
     });
 
   } catch (error) {
@@ -125,10 +254,20 @@ export async function POST(request) {
 
 // GET endpoint to check withdrawal status/limits
 export async function GET() {
+  // Test connection to Linera node
+  let nodeStatus = 'unknown';
+  try {
+    const response = await fetch(`${LINERA_CONFIG.rpcUrl}/health`, { method: 'GET' });
+    nodeStatus = response.ok ? 'connected' : 'error';
+  } catch {
+    nodeStatus = 'disconnected';
+  }
+
   return NextResponse.json({
     status: 'ok',
-    service: 'Linera Withdraw API',
+    service: 'Linera Withdraw API (REAL BLOCKCHAIN)',
     network: 'Linera Conway Testnet',
+    nodeStatus,
     limits: {
       min: MIN_WITHDRAW,
       max: MAX_WITHDRAW,
@@ -137,7 +276,9 @@ export async function GET() {
     config: {
       chainId: LINERA_CONFIG.chainId,
       applicationId: LINERA_CONFIG.applicationId,
+      rpcUrl: LINERA_CONFIG.rpcUrl,
       explorerUrl: LINERA_CONFIG.explorerUrl,
+      applicationEndpoint: getAppEndpoint(),
     },
   });
 }
