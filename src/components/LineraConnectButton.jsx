@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLineraWallet } from '@/hooks/useLineraWallet';
 import { useSelector } from 'react-redux';
 import WalletPasswordModal from './WalletPasswordModal';
@@ -67,15 +67,21 @@ export default function LineraConnectButton() {
   const [passwordMode, setPasswordMode] = useState('unlock'); // 'create' or 'unlock'
   const [passwordError, setPasswordError] = useState(null);
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
+  const hasShownModalRef = useRef(false);
 
   // Check if we need to show password modal on mount or when wallet needs password
   useEffect(() => {
-    if (hookNeedsPassword && !showPasswordModal) {
-      // Wallet service says we need a password
+    // Only auto-show modal once per session, and only if not already loading
+    if (hookNeedsPassword && !showPasswordModal && !isPasswordLoading && !hasShownModalRef.current) {
+      hasShownModalRef.current = true;
       setPasswordMode(hasStoredWallet() ? 'unlock' : 'create');
       setShowPasswordModal(true);
     }
-  }, [hookNeedsPassword, showPasswordModal]);
+    // Reset the flag when wallet connects successfully
+    if (hookIsConnected) {
+      hasShownModalRef.current = false;
+    }
+  }, [hookNeedsPassword, showPasswordModal, isPasswordLoading, hookIsConnected]);
 
   const handleConnect = useCallback(async () => {
     try {
