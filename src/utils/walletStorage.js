@@ -23,7 +23,7 @@ const safeStorage = {
       try {
         value = localStorage.getItem(key);
         if (value !== null) {
-          console.log(`📦 Retrieved ${key} from localStorage:`, value);
+          
           return value;
         }
       } catch (e) {
@@ -34,7 +34,7 @@ const safeStorage = {
       try {
         value = sessionStorage.getItem(key);
         if (value !== null) {
-          console.log(`📦 Retrieved ${key} from sessionStorage:`, value);
+          
           return value;
         }
       } catch (e) {
@@ -47,14 +47,13 @@ const safeStorage = {
         const cookie = cookies.find(c => c.trim().startsWith(`${key}=`));
         if (cookie) {
           value = cookie.split('=')[1];
-          console.log(`📦 Retrieved ${key} from cookies:`, value);
+          
           return value;
         }
       } catch (e) {
         console.warn(`cookies failed for ${key}:`, e);
       }
       
-      console.log(`📦 No value found for ${key} in any storage`);
       return null;
     } catch (error) {
       console.warn(`Failed to get ${key} from storage:`, error);
@@ -70,7 +69,7 @@ const safeStorage = {
       // 1. Try localStorage
       try {
         localStorage.setItem(key, value);
-        console.log(`💾 Saved ${key} to localStorage:`, value);
+        
         success = true;
       } catch (e) {
         console.warn(`localStorage failed for ${key}:`, e);
@@ -79,7 +78,7 @@ const safeStorage = {
       // 2. Try sessionStorage
       try {
         sessionStorage.setItem(key, value);
-        console.log(`💾 Saved ${key} to sessionStorage:`, value);
+        
         success = true;
       } catch (e) {
         console.warn(`sessionStorage failed for ${key}:`, e);
@@ -88,7 +87,7 @@ const safeStorage = {
       // 3. Try document.cookie as fallback
       try {
         document.cookie = `${key}=${value}; path=/; max-age=86400`; // 24 hours
-        console.log(`💾 Saved ${key} to cookies:`, value);
+        
         success = true;
       } catch (e) {
         console.warn(`cookies failed for ${key}:`, e);
@@ -109,7 +108,7 @@ const safeStorage = {
       // Remove from all storage methods
       try {
         localStorage.removeItem(key);
-        console.log(`🗑️ Removed ${key} from localStorage`);
+        
         success = true;
       } catch (e) {
         console.warn(`localStorage remove failed for ${key}:`, e);
@@ -117,7 +116,7 @@ const safeStorage = {
       
       try {
         sessionStorage.removeItem(key);
-        console.log(`🗑️ Removed ${key} from sessionStorage`);
+        
         success = true;
       } catch (e) {
         console.warn(`sessionStorage remove failed for ${key}:`, e);
@@ -125,7 +124,7 @@ const safeStorage = {
       
       try {
         document.cookie = `${key}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-        console.log(`🗑️ Removed ${key} from cookies`);
+        
         success = true;
       } catch (e) {
         console.warn(`cookies remove failed for ${key}:`, e);
@@ -160,9 +159,8 @@ export const walletStorage = {
                    safeStorage.setItem(STORAGE_KEYS.CONNECTOR, connector);
     
     if (success) {
-      console.log('💾 Wallet state saved successfully');
     } else {
-      console.warn('⚠️ Failed to save wallet state');
+      console.warn('Failed to save wallet state');
     }
     
     return success;
@@ -176,9 +174,8 @@ export const walletStorage = {
                    safeStorage.removeItem(STORAGE_KEYS.LAST_RECONNECT);
     
     if (success) {
-      console.log('🗑️ Wallet state cleared successfully');
     } else {
-      console.warn('⚠️ Failed to clear wallet state');
+      console.warn('Failed to clear wallet state');
     }
     
     return success;

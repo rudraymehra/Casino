@@ -136,7 +136,6 @@ class LineraWalletService {
         if (sessionUnlocked === 'true' && state.isUnlocked) {
           // User already unlocked in this session - restore unlocked state
           this.isUnlocked = true;
-          console.log('Wallet session restored - already unlocked');
 
           setTimeout(() => {
             this._notifyListeners('connected', {
@@ -160,7 +159,7 @@ class LineraWalletService {
         }
       }
     } catch (error) {
-      console.error('Failed to restore Linera wallet state:', error);
+      // Silent fail on restore - user can reconnect
     }
   }
 
@@ -192,20 +191,17 @@ class LineraWalletService {
     // Only use if it has the connect method
     const checkoCandidate = window.linera || window.checko;
     if (checkoCandidate && typeof checkoCandidate.connect === 'function') {
-      console.log('CheCko Linera wallet detected');
       this.checkoWallet = checkoCandidate;
       return WALLET_PROVIDERS.CHECKO;
     }
 
     // Check for existing encrypted wallet
     if (this._hasStoredWallet()) {
-      console.log('Stored native wallet detected');
       this.encryptedWallet = loadEncryptedWallet();
       return WALLET_PROVIDERS.NATIVE;
     }
 
     // New user - will need to create wallet via faucet
-    console.log('No wallet found - new user');
     return WALLET_PROVIDERS.NATIVE;
   }
 
@@ -214,22 +210,14 @@ class LineraWalletService {
    */
   async initialize() {
     try {
-      console.log('Initializing Linera Wallet Service...');
-      console.log(`   Chain ID: ${LINERA_CONFIG.chainId}`);
-      console.log(`   App ID: ${LINERA_CONFIG.applicationId}`);
-      console.log(`   RPC: ${LINERA_CONFIG.rpcUrl}`);
-
       // Detect available wallet provider
       this.walletProvider = this.detectWalletProvider();
-      console.log(`   Wallet Provider: ${this.walletProvider || 'none'}`);
 
       // Initialize Linera client service (for browser-side signing)
       if (typeof window !== 'undefined') {
         try {
           this.clientInitialized = await LineraClientService.initializeLineraClient();
-          console.log(`   Client Initialized: ${this.clientInitialized}`);
         } catch (error) {
-          console.warn('   Client initialization failed (non-critical):', error.message);
           this.clientInitialized = false;
         }
       }
@@ -237,7 +225,6 @@ class LineraWalletService {
       this.isInitialized = true;
       return true;
     } catch (error) {
-      console.error('[LineraWalletService] Initialization failed:', error);
       return false;
     }
   }
@@ -251,7 +238,6 @@ class LineraWalletService {
     }
 
     try {
-      console.log('Connecting to CheCko Linera wallet...');
 
       // CheCko wallet provides a connect method that returns chain info
       const connection = await this.checkoWallet.connect({
@@ -272,7 +258,6 @@ class LineraWalletService {
         this.balance = 0; // No free tokens if balance fetch fails
       }
 
-      console.log('CheCko wallet connected:', this.userOwner);
       this._persistState();
 
       return {
@@ -283,7 +268,6 @@ class LineraWalletService {
         provider: WALLET_PROVIDERS.CHECKO,
       };
     } catch (error) {
-      console.error('CheCko connection failed:', error);
       throw error;
     }
   }
@@ -300,14 +284,11 @@ class LineraWalletService {
     }
 
     try {
-      console.log('Creating new native Linera wallet via faucet...');
-
       if (typeof window === 'undefined') {
         throw new Error('Cannot create wallet in server-side context');
       }
 
       // REAL FAUCET CLAIM - Creates new chain with tokens
-      console.log('Calling Linera faucet API...');
 
       const response = await fetch('/api/linera/faucet', {
         method: 'POST',
@@ -335,10 +316,6 @@ class LineraWalletService {
       const chainId = faucetResult.chainId || LINERA_CONFIG.chainId;
       const amount = faucetResult.amount || 0;
 
-      console.log('Faucet claim successful!');
-      console.log(`   Chain ID: ${chainId}`);
-      console.log(`   Owner: ${owner?.slice(0, 16)}...`);
-      console.log(`   Tokens: ${amount} LINERA`);
 
       // Encrypt private key with password
       const encrypted = await encryptPrivateKey(privateKeyHex, password);
@@ -365,9 +342,7 @@ class LineraWalletService {
       // Create signer for transaction signing
       try {
         this.signer = await LineraClientService.createSigner(privateKeyHex);
-        console.log('Signer created for transaction signing');
       } catch (error) {
-        console.warn('Failed to create signer:', error.message);
         this.signer = null;
       }
 
@@ -396,8 +371,6 @@ class LineraWalletService {
         },
       });
 
-      console.log('Native wallet created and encrypted');
-
       return {
         owner: this.userOwner,
         chain: this.connectedChain,
@@ -412,7 +385,6 @@ class LineraWalletService {
         },
       };
     } catch (error) {
-      console.error('Failed to create native wallet:', error);
       throw error;
     }
   }
@@ -428,9 +400,6 @@ class LineraWalletService {
     }
 
     try {
-      console.log('=== UNLOCKING WALLET ===');
-      console.log('localStorage.userBalance:', localStorage.getItem('userBalance'));
-      console.log('linera_wallet_state:', localStorage.getItem('linera_wallet_state'));
 
       // Load encrypted wallet
       const encryptedWallet = loadEncryptedWallet();
@@ -453,33 +422,24 @@ class LineraWalletService {
       // Create signer for transaction signing
       try {
         this.signer = await LineraClientService.createSigner(privateKeyHex);
-        console.log('Signer created for transaction signing');
       } catch (error) {
-        console.warn('Failed to create signer:', error.message);
         this.signer = null;
       }
 
       // Restore balance - ALWAYS prioritize userBalance (updated by games)
       // over linera_wallet_state.balance (may be stale)
       const userBalanceStr = localStorage.getItem('userBalance');
-      console.log('Raw userBalance from localStorage:', userBalanceStr);
-
       if (userBalanceStr && !isNaN(parseFloat(userBalanceStr)) && parseFloat(userBalanceStr) >= 0) {
         this.balance = parseFloat(userBalanceStr);
-        console.log('✅ Restored balance from userBalance:', this.balance);
       } else {
         const savedState = localStorage.getItem('linera_wallet_state');
         if (savedState) {
           const state = JSON.parse(savedState);
           this.balance = state.balance || 0;
-          console.log('⚠️ Restored balance from wallet state (fallback):', this.balance);
         } else {
           this.balance = 0;
-          console.log('⚠️ No balance found, defaulting to 0');
         }
       }
-
-      console.log(`=== WALLET UNLOCKED with balance: ${this.balance} LINERA ===`);
 
       // Persist state
       this._persistState();
@@ -506,7 +466,6 @@ class LineraWalletService {
         provider: WALLET_PROVIDERS.NATIVE,
       };
     } catch (error) {
-      console.error('Failed to unlock wallet:', error);
       throw error;
     }
   }
@@ -516,14 +475,11 @@ class LineraWalletService {
    */
   async fetchRealBalance() {
     if (!this.userOwner) {
-      console.log('No owner set, returning local balance');
       return this.balance;
     }
 
     try {
-      console.log('Fetching real balance from blockchain...');
       const blockchainBalance = await LineraClientService.queryBalance(this.userOwner);
-      console.log(`Blockchain balance: ${blockchainBalance} LINERA`);
 
       // Update local balance if we got a valid response
       if (blockchainBalance !== null && blockchainBalance >= 0) {
@@ -534,8 +490,6 @@ class LineraWalletService {
 
       return this.balance;
     } catch (error) {
-      console.warn('Failed to fetch blockchain balance:', error.message);
-      console.log(`Returning local balance: ${this.balance} LINERA`);
       return this.balance;
     }
   }
@@ -553,14 +507,11 @@ class LineraWalletService {
       throw new Error('Deposit amount must be greater than 0');
     }
 
-    console.log(`LINERA: Depositing ${depositAmount} LINERA...`);
-
     try {
       let result;
 
       if (this.signer) {
         // Use signed transaction
-        console.log('Using client-side signed deposit...');
         const depositResult = await LineraClientService.deposit(this.signer, depositAmount);
 
         if (!depositResult?.deposit) {
@@ -595,14 +546,11 @@ class LineraWalletService {
       this._persistState();
       this._notifyListeners('balanceChanged', { balance: this.balance });
 
-      console.log(`✅ Deposit successful! New balance: ${this.balance} LINERA`);
-
       return {
         ...result,
         newBalance: this.balance,
       };
     } catch (error) {
-      console.error('Deposit failed:', error);
       throw error;
     }
   }
@@ -624,14 +572,11 @@ class LineraWalletService {
       throw new Error(`Insufficient balance. You have ${this.balance} LINERA`);
     }
 
-    console.log(`LINERA: Withdrawing ${withdrawAmount} LINERA...`);
-
     try {
       let result;
 
       if (this.signer) {
         // Use signed transaction
-        console.log('Using client-side signed withdrawal...');
         const withdrawResult = await LineraClientService.withdraw(this.signer, withdrawAmount);
 
         if (!withdrawResult?.withdraw) {
@@ -666,14 +611,11 @@ class LineraWalletService {
       this._persistState();
       this._notifyListeners('balanceChanged', { balance: this.balance });
 
-      console.log(`✅ Withdrawal successful! New balance: ${this.balance} LINERA`);
-
       return {
         ...result,
         newBalance: this.balance,
       };
     } catch (error) {
-      console.error('Withdrawal failed:', error);
       throw error;
     }
   }
@@ -682,7 +624,6 @@ class LineraWalletService {
    * Lock the wallet (clear private key from memory)
    */
   lockWallet() {
-    console.log('Locking wallet...');
     this.privateKey = null;
     this.signer = null;
     this.isUnlocked = false;
@@ -735,7 +676,6 @@ class LineraWalletService {
               throw new Error('Connection cancelled by user');
             }
 
-            console.warn('CheCko failed, trying native wallet:', error.message);
             if (password) {
               result = await this.connectNative(password, createNew);
             } else {
@@ -762,12 +702,6 @@ class LineraWalletService {
           }
       }
 
-      console.log('[LineraWalletService] Connected:', {
-        owner: this.userOwner,
-        chain: this.connectedChain,
-        balance: this.balance,
-        provider: this.walletProvider,
-      });
 
       this._notifyListeners('connected', {
         owner: this.userOwner,
@@ -781,7 +715,6 @@ class LineraWalletService {
 
       return result;
     } catch (error) {
-      console.error('[LineraWalletService] Connection failed:', error);
       this._notifyListeners('error', error);
       throw error;
     }
@@ -793,7 +726,6 @@ class LineraWalletService {
   async disconnect() {
     // DON'T overwrite localStorage.userBalance - it has the most accurate balance from games
     // The balance in this.balance might be stale if games updated Redux but not wallet service
-    console.log('Disconnecting wallet. Preserving localStorage.userBalance:', localStorage.getItem('userBalance'));
 
     this.userOwner = null;
     this.userAddress = null;
@@ -820,7 +752,6 @@ class LineraWalletService {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('userBalance');
     }
-    console.log('Wallet deleted');
   }
 
   /**
@@ -855,7 +786,6 @@ class LineraWalletService {
     if (typeof window !== 'undefined') {
       localStorage.setItem('userBalance', this.balance.toString());
     }
-    console.log('Balance updated:', this.balance);
   }
 
   /**
@@ -863,11 +793,9 @@ class LineraWalletService {
    */
   async getGameHistory() {
     try {
-      console.log('Fetching game history from blockchain...');
       const history = await LineraClientService.queryGameHistory();
       return history;
     } catch (error) {
-      console.warn('Failed to fetch game history:', error.message);
       return [];
     }
   }
@@ -910,11 +838,6 @@ class LineraWalletService {
       throw new Error('Bet amount must be greater than 0');
     }
 
-    console.log(`LINERA: Placing bet for ${gameType}...`);
-    console.log(`   Amount: ${bet} LINERA`);
-    console.log(`   Player: ${this.userOwner}`);
-    console.log(`   Signer available: ${!!this.signer}`);
-
     try {
       // Generate commit-reveal values
       const { revealValue, revealBytes } = this.generateRandomCommit();
@@ -924,7 +847,6 @@ class LineraWalletService {
 
       // If we have a signer, use client-side signed transactions
       if (this.signer) {
-        console.log('Using client-side signed transaction...');
 
         try {
           // Step 1: Place bet with signature
@@ -977,11 +899,8 @@ class LineraWalletService {
             },
           };
 
-          console.log('✅ Client-side signed transaction successful!');
         } catch (signedError) {
-          console.error('Client-side signing failed:', signedError.message);
           // Fall back to API route
-          console.log('Falling back to API route...');
           result = await this._placeBetViaAPI(gameType, bet, gameParams);
         }
       } else {
@@ -994,12 +913,6 @@ class LineraWalletService {
         const netResult = payout - bet;
         this.balance = Math.max(0, this.balance + netResult);
 
-        console.log(`LINERA: Bet completed!`);
-        console.log(`   Game ID: ${result.gameId}`);
-        console.log(`   Outcome: ${result.outcome}`);
-        console.log(`   Payout: ${payout} LINERA`);
-        console.log(`   New Balance: ${this.balance} LINERA`);
-
         this._notifyListeners('balanceChanged', { balance: this.balance });
         this._persistState();
       }
@@ -1009,7 +922,6 @@ class LineraWalletService {
         balance: this.balance,
       };
     } catch (error) {
-      console.error('LINERA: Bet failed:', error);
       throw error;
     }
   }
@@ -1150,7 +1062,6 @@ class LineraWalletService {
     }
 
     try {
-      console.log('Requesting tokens from Linera faucet...');
 
       const response = await fetch('/api/linera/faucet', {
         method: 'POST',
@@ -1178,9 +1089,6 @@ class LineraWalletService {
         localStorage.setItem('userBalance', this.balance.toString());
       }
 
-      console.log(`Received ${receivedAmount} LINERA from faucet`);
-      console.log(`   New balance: ${this.balance}`);
-
       return {
         success: true,
         amount: receivedAmount,
@@ -1190,7 +1098,6 @@ class LineraWalletService {
         blockchain: result.blockchain,
       };
     } catch (error) {
-      console.error('Faucet request failed:', error);
       throw error;
     }
   }
@@ -1211,7 +1118,7 @@ class LineraWalletService {
       try {
         callback(event, data);
       } catch (e) {
-        console.error('[LineraWalletService] Listener error:', e);
+        // Silent fail on listener errors
       }
     });
   }

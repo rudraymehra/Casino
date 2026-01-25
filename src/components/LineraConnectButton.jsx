@@ -48,13 +48,11 @@ export default function LineraConnectButton() {
       if (storedBalanceNum > 0) {
         dispatch(setBalance(storedBalance));
         setDisplayBalance(storedBalanceNum);
-        console.log('Restored balance from localStorage:', storedBalanceNum);
       } else if (lineraBalance > 0) {
         dispatch(setBalance(lineraBalance.toString()));
         if (typeof window !== 'undefined') {
           localStorage.setItem('userBalance', lineraBalance.toString());
         }
-        console.log('Using lineraBalance:', lineraBalance);
       }
     }
   }, [hookIsConnected, lineraBalance, dispatch]);
@@ -91,7 +89,6 @@ export default function LineraConnectButton() {
       // Only update if balance actually changed and is valid
       if (!isNaN(newBalance) && newBalance >= 0) {
         lineraWalletService.setBalance(newBalance);
-        console.log('Synced Redux balance to wallet service:', newBalance);
       }
       prevBalanceRef.current = userBalance;
     }

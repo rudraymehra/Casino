@@ -42,14 +42,12 @@ const balanceSlice = createSlice({
       // Ensure balance never goes negative
       if (parseFloat(newBalance) < 0) {
         state.userBalance = "0";
-        console.warn('Attempted to set negative balance, setting to 0 instead');
       } else {
         state.userBalance = newBalance;
       }
       // Persist to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('userBalance', state.userBalance);
-        console.log('[BalanceSlice] Saved balance to localStorage:', state.userBalance);
       }
     },
     addToBalance(state, action) {

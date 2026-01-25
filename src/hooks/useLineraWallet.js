@@ -175,8 +175,6 @@ export function useLineraGame() {
     setLastResult(null);
 
     try {
-      console.log(`🎮 Playing ${gameType} with ${betAmount} LINERA...`);
-      
       const result = await lineraWalletService.placeBet(gameType, betAmount, gameParams);
       
       setLastResult(result);

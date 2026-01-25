@@ -193,7 +193,6 @@ export function saveEncryptedWallet(walletData) {
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  console.log('Encrypted wallet saved to storage');
 }
 
 /**
@@ -209,13 +208,11 @@ export function loadEncryptedWallet() {
 
     const data = JSON.parse(saved);
     if (data.version !== 1) {
-      console.warn('Unknown wallet storage version:', data.version);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('Failed to load encrypted wallet:', error);
     return null;
   }
 }
@@ -235,7 +232,6 @@ export function hasStoredWallet() {
 export function clearStoredWallet() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY);
-  console.log('Encrypted wallet cleared from storage');
 }
 
 /**

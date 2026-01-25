@@ -26,7 +26,7 @@ const safeStorage = {
       // Try localStorage first
       const localValue = localStorage.getItem(key);
       if (localValue !== null) {
-        console.log(`📦 Retrieved ${key} from localStorage:`, localValue);
+        
         return localValue;
       }
     } catch (e) {
@@ -37,7 +37,7 @@ const safeStorage = {
       // Try sessionStorage
       const sessionValue = sessionStorage.getItem(key);
       if (sessionValue !== null) {
-        console.log(`📦 Retrieved ${key} from sessionStorage:`, sessionValue);
+        
         return sessionValue;
       }
     } catch (e) {
@@ -47,7 +47,7 @@ const safeStorage = {
     // Fallback to memory storage
     const memoryValue = memoryStorage[key];
     if (memoryValue !== undefined) {
-      console.log(`📦 Retrieved ${key} from memory:`, memoryValue);
+      
       return memoryValue;
     }
     
@@ -74,7 +74,7 @@ const safeStorage = {
     try {
       // Try localStorage
       localStorage.setItem(key, value);
-      console.log(`💾 Saved ${key} to localStorage:`, value);
+      
       success = true;
     } catch (e) {
       console.warn(`localStorage failed for ${key}:`, e);
@@ -83,7 +83,7 @@ const safeStorage = {
     try {
       // Try sessionStorage
       sessionStorage.setItem(key, value);
-      console.log(`💾 Saved ${key} to sessionStorage:`, value);
+      
       success = true;
     } catch (e) {
       console.warn(`sessionStorage failed for ${key}:`, e);
@@ -91,7 +91,7 @@ const safeStorage = {
     
     // Always save to memory as backup
     memoryStorage[key] = value;
-    console.log(`💾 Saved ${key} to memory:`, value);
+    
     
     // Update global state
     switch (key) {
@@ -117,21 +117,21 @@ const safeStorage = {
     
     try {
       localStorage.removeItem(key);
-      console.log(`🗑️ Removed ${key} from localStorage`);
+      
     } catch (e) {
       console.warn(`localStorage remove failed for ${key}:`, e);
     }
     
     try {
       sessionStorage.removeItem(key);
-      console.log(`🗑️ Removed ${key} from sessionStorage`);
+      
     } catch (e) {
       console.warn(`sessionStorage remove failed for ${key}:`, e);
     }
     
     // Remove from memory
     delete memoryStorage[key];
-    console.log(`🗑️ Removed ${key} from memory`);
+    
     
     // Reset global state
     switch (key) {
@@ -182,9 +182,8 @@ export const memoryWalletStorage = {
                    safeStorage.setItem(STORAGE_KEYS.CONNECTOR, connector);
     
     if (success) {
-      console.log('💾 Wallet state saved successfully (memory fallback)');
     } else {
-      console.warn('⚠️ Failed to save wallet state');
+      console.warn('Failed to save wallet state');
     }
     
     return success;
@@ -198,9 +197,8 @@ export const memoryWalletStorage = {
                    safeStorage.removeItem(STORAGE_KEYS.LAST_RECONNECT);
     
     if (success) {
-      console.log('🗑️ Wallet state cleared successfully (memory fallback)');
     } else {
-      console.warn('⚠️ Failed to clear wallet state');
+      console.warn('Failed to clear wallet state');
     }
     
     return success;
