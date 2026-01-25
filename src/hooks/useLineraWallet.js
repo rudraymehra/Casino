@@ -71,12 +71,17 @@ export function useLineraWallet() {
     };
   }, []);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (password = null, createNew = false) => {
     setIsConnecting(true);
     setError(null);
     try {
-      const result = await lineraWalletService.connect();
+      const result = await lineraWalletService.connect(password, createNew);
+      // If needs password, don't set connected - let the caller handle it
+      if (result?.needsPassword) {
+        return result;
+      }
       setIsConnected(true);
+      setNeedsPassword(false);
       setOwner(result.owner);
       setAddress(result.ethAddress);
       setChainId(result.chain);
