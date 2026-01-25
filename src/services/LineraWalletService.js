@@ -157,9 +157,11 @@ class LineraWalletService {
     }
 
     // Check for CheCko Linera wallet (respeer-ai/linera-wallet)
-    if (window.linera || window.checko) {
+    // Only use if it has the connect method
+    const checkoCandidate = window.linera || window.checko;
+    if (checkoCandidate && typeof checkoCandidate.connect === 'function') {
       console.log('CheCko Linera wallet detected');
-      this.checkoWallet = window.linera || window.checko;
+      this.checkoWallet = checkoCandidate;
       return WALLET_PROVIDERS.CHECKO;
     }
 

@@ -58,7 +58,7 @@ export default function LineraConnectButton() {
     }
   }, [userBalance, lineraBalance]);
 
-  const balance = displayBalance;
+  const balance = displayBalance || 0;
 
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFaucetLoading, setIsFaucetLoading] = useState(false);
