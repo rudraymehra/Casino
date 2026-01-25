@@ -85,17 +85,19 @@ export default function WalletPasswordModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
       />
 
-      {/* Centering wrapper */}
-      <div className="flex min-h-full items-center justify-center p-4">
-        {/* Modal */}
-        <div className="relative bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
+      {/* Scrollable container */}
+      <div className="fixed inset-0 overflow-y-auto">
+        {/* Centering wrapper */}
+        <div className="flex min-h-full items-center justify-center p-4">
+          {/* Modal */}
+          <div className="relative bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
@@ -244,13 +246,14 @@ export default function WalletPasswordModal({
           </button>
         </form>
 
-        {/* Footer */}
-        <div className="mt-4 pt-4 border-t border-gray-700">
-          <p className="text-xs text-gray-500 text-center">
-            Powered by <span className="text-emerald-400">Linera</span> Conway Testnet
-          </p>
+          {/* Footer */}
+          <div className="mt-4 pt-4 border-t border-gray-700">
+            <p className="text-xs text-gray-500 text-center">
+              Powered by <span className="text-emerald-400">Linera</span> Conway Testnet
+            </p>
+          </div>
         </div>
-      </div>
+        </div>
       </div>
     </div>
   );
