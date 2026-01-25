@@ -41,13 +41,9 @@ export default function LineraConnectButton() {
     return demoState === 'connected' && demoOwner && savedBalance && parseFloat(savedBalance) > 0;
   }, []);
 
-  // Consider connected if:
-  // 1. Hook says connected, OR
-  // 2. We're on client AND localStorage has persisted connection, OR
-  // 3. Redux has balance > 0 (user was connected)
-  const hasBalance = parseFloat(userBalance || '0') > 0;
-  const persistedConnection = isClient && checkPersistedConnection();
-  const isConnected = hookIsConnected || persistedConnection || hasBalance;
+  // Only consider connected if the actual wallet hook says connected
+  // This ensures faucet/withdraw operations work properly
+  const isConnected = hookIsConnected;
 
   // Sync display balance with game balance (PC balance)
   useEffect(() => {
