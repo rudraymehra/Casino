@@ -10,6 +10,7 @@ export default function LineraConnectButton() {
   const {
     isConnected: hookIsConnected,
     isConnecting,
+    needsPassword: hookNeedsPassword,
     address,
     balance: lineraBalance,
     connect,
@@ -67,15 +68,14 @@ export default function LineraConnectButton() {
   const [passwordError, setPasswordError] = useState(null);
   const [isPasswordLoading, setIsPasswordLoading] = useState(false);
 
-  // Check if we need to show password modal on mount
+  // Check if we need to show password modal on mount or when wallet needs password
   useEffect(() => {
-    const needsPassword = hasStoredWallet() && !isConnected && !isConnecting;
-    if (needsPassword && !showPasswordModal) {
-      // User has a stored wallet but isn't connected - they need to unlock
-      setPasswordMode('unlock');
+    if (hookNeedsPassword && !showPasswordModal) {
+      // Wallet service says we need a password
+      setPasswordMode(hasStoredWallet() ? 'unlock' : 'create');
       setShowPasswordModal(true);
     }
-  }, [isConnected, isConnecting, showPasswordModal]);
+  }, [hookNeedsPassword, showPasswordModal]);
 
   const handleConnect = useCallback(async () => {
     try {

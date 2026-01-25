@@ -12,6 +12,7 @@ import { lineraWalletService, GAME_TYPES, LINERA_CONFIG } from '../services/Line
 export function useLineraWallet() {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(false);
   const [owner, setOwner] = useState(null);
   const [address, setAddress] = useState(null);
   const [chainId, setChainId] = useState(null);
@@ -24,6 +25,7 @@ export function useLineraWallet() {
       switch (event) {
         case 'connected':
           setIsConnected(true);
+          setNeedsPassword(false);
           setOwner(data.owner);
           setAddress(data.address);
           setChainId(data.chain);
@@ -32,10 +34,15 @@ export function useLineraWallet() {
           break;
         case 'disconnected':
           setIsConnected(false);
+          setNeedsPassword(false);
           setOwner(null);
           setAddress(null);
           setChainId(null);
           setBalance(0);
+          break;
+        case 'needsPassword':
+          setNeedsPassword(true);
+          setIsConnected(false);
           break;
         case 'balanceChanged':
           setBalance(data.balance);
@@ -106,6 +113,7 @@ export function useLineraWallet() {
   return {
     isConnected,
     isConnecting,
+    needsPassword,
     owner,
     address,
     chainId,
