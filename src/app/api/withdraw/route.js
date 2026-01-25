@@ -11,11 +11,14 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Linera Configuration - MUST match .env.local
+// Linera Configuration - Hardcoded for production reliability
+// Note: RPC must be rpc.testnet, NOT faucet.testnet
 const LINERA_CONFIG = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
   applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
-  rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://rpc.testnet-conway.linera.net',
+  // FORCE correct RPC URL - env var might be set wrong
+  rpcUrl: 'https://rpc.testnet-conway.linera.net',
+  faucetUrl: 'https://faucet.testnet-conway.linera.net',
   explorerUrl: 'https://explorer.testnet-conway.linera.net',
 };
 
