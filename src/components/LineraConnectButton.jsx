@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLineraWallet } from '@/hooks/useLineraWallet';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { setBalance } from '@/store/balanceSlice';
 import WalletPasswordModal from './WalletPasswordModal';
 import { hasStoredWallet } from '@/utils/lineraWalletCrypto';
 
@@ -23,6 +24,7 @@ export default function LineraConnectButton() {
 
   // Use Redux balance to stay in sync with game balance
   const { userBalance } = useSelector((state) => state.balance);
+  const dispatch = useDispatch();
   const [displayBalance, setDisplayBalance] = useState(0);
 
   // Track if we're on the client (for SSR compatibility)
@@ -31,6 +33,17 @@ export default function LineraConnectButton() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Sync wallet balance to Redux when it changes
+  useEffect(() => {
+    if (hookIsConnected && lineraBalance > 0) {
+      dispatch(setBalance(lineraBalance.toString()));
+      // Also save to localStorage for persistence
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('userBalance', lineraBalance.toString());
+      }
+    }
+  }, [hookIsConnected, lineraBalance, dispatch]);
 
   // Check localStorage directly - only on client side
   const checkPersistedConnection = useCallback(() => {
