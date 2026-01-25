@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { validatePasswordStrength } from '@/utils/lineraWalletCrypto';
 
 /**
@@ -26,6 +27,11 @@ export default function WalletPasswordModal({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isCreateMode = mode === 'create';
   const displayError = error || localError;
@@ -82,9 +88,9 @@ export default function WalletPasswordModal({
     return 'bg-emerald-500';
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
@@ -255,6 +261,7 @@ export default function WalletPasswordModal({
         </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
