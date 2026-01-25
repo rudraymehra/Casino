@@ -52,43 +52,15 @@ const nextConfig = {
       type: 'webassembly/async',
     });
     
-    // Optimize chunking for better loading performance
+    // Simple chunking - don't over-optimize
     if (!isServer && !dev) {
-      // Combine smaller chunks to reduce network requests
       config.optimization.splitChunks = {
         chunks: 'all',
-        maxInitialRequests: 25,
-        minSize: 20000,
-        maxSize: 200000,
         cacheGroups: {
-          default: false,
-          vendors: false,
-          framework: {
-            name: 'framework',
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/](@react|react|next|scheduler)[\\/]/,
-            priority: 40,
-            enforce: true,
-          },
-          commons: {
-            name: 'commons',
-            chunks: 'all',
-            minChunks: 2,
-            priority: 20,
-          },
-          lib: {
+          vendor: {
             test: /[\\/]node_modules[\\/]/,
-            name(module) {
-              if (module.context && module.context.match) {
-                const match = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/);
-                if (match && match[1]) {
-                  return `npm.${match[1].replace('@', '')}`;
-                }
-              }
-              return 'npm.unknown';
-            },
-            priority: 10,
-            minChunks: 1,
+            name: 'vendors',
+            chunks: 'all',
           },
         },
       };
