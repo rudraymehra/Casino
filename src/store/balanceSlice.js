@@ -49,6 +49,7 @@ const balanceSlice = createSlice({
       // Persist to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('userBalance', state.userBalance);
+        console.log('[BalanceSlice] Saved balance to localStorage:', state.userBalance);
       }
     },
     addToBalance(state, action) {

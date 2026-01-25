@@ -28,10 +28,13 @@ export function WalletStatusProvider({ children }) {
 
     // Check localStorage for persisted Linera wallet state
     const savedState = localStorage.getItem('linera_wallet_state');
+    const sessionUnlocked = sessionStorage.getItem('linera_session_unlocked');
+
     if (savedState) {
       try {
         const state = JSON.parse(savedState);
-        if (state.userOwner && state.isUnlocked) {
+        // Check if wallet was unlocked AND session is still valid
+        if (state.userOwner && (state.isUnlocked || sessionUnlocked === 'true')) {
           setWalletState({
             isConnected: true,
             address: state.userAddress || state.userOwner,
@@ -89,11 +92,12 @@ export function WalletStatusProvider({ children }) {
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'linera_wallet_state') {
+        const sessionUnlocked = sessionStorage.getItem('linera_session_unlocked');
         if (e.newValue) {
           try {
             const state = JSON.parse(e.newValue);
             setWalletState({
-              isConnected: !!state.userOwner && state.isUnlocked,
+              isConnected: !!state.userOwner && (state.isUnlocked || sessionUnlocked === 'true'),
               address: state.userAddress || state.userOwner,
               chain: { id: 'linera_conway_testnet', name: 'Linera Conway Testnet' },
             });

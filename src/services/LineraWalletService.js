@@ -73,11 +73,17 @@ class LineraWalletService {
   _persistState() {
     if (typeof window === 'undefined') return;
 
+    // Use userBalance from localStorage if available (more accurate from game updates)
+    const userBalanceStr = localStorage.getItem('userBalance');
+    const balanceToSave = (userBalanceStr && !isNaN(parseFloat(userBalanceStr)))
+      ? parseFloat(userBalanceStr)
+      : this.balance;
+
     const state = {
       connectedChain: this.connectedChain,
       userOwner: this.userOwner,
       userAddress: this.userAddress,
-      balance: this.balance,
+      balance: balanceToSave,
       walletProvider: this.walletProvider,
       isUnlocked: this.isUnlocked,
       timestamp: Date.now(),
@@ -109,23 +115,49 @@ class LineraWalletService {
       this.connectedChain = state.connectedChain;
       this.userOwner = state.userOwner;
       this.userAddress = state.userAddress;
-      this.balance = state.balance || 0; // Default to 0, NOT 1000
       this.walletProvider = state.walletProvider;
+
+      // Restore balance from userBalance (most accurate) or state
+      const userBalance = localStorage.getItem('userBalance');
+      if (userBalance && !isNaN(parseFloat(userBalance))) {
+        this.balance = parseFloat(userBalance);
+      } else {
+        this.balance = state.balance || 0;
+      }
 
       // Check for encrypted wallet
       this.encryptedWallet = loadEncryptedWallet();
 
-      // Notify listeners of restored connection if previously unlocked
-      // But user still needs to unlock with password
-      if (this.userAddress && this.userOwner) {
-        setTimeout(() => {
-          this._notifyListeners('needsUnlock', {
-            owner: this.userOwner,
-            address: this.userAddress,
-            chain: this.connectedChain,
-            balance: this.balance,
-          });
-        }, 100);
+      // Check if wallet was previously unlocked in this session
+      // We use sessionStorage to track if user already entered password this session
+      const sessionUnlocked = sessionStorage.getItem('linera_session_unlocked');
+
+      if (this.userAddress && this.userOwner && this.encryptedWallet) {
+        if (sessionUnlocked === 'true' && state.isUnlocked) {
+          // User already unlocked in this session - restore unlocked state
+          this.isUnlocked = true;
+          console.log('Wallet session restored - already unlocked');
+
+          setTimeout(() => {
+            this._notifyListeners('connected', {
+              owner: this.userOwner,
+              address: this.userAddress,
+              chain: this.connectedChain,
+              balance: this.balance,
+              provider: this.walletProvider,
+            });
+          }, 100);
+        } else {
+          // Need to unlock with password
+          setTimeout(() => {
+            this._notifyListeners('needsUnlock', {
+              owner: this.userOwner,
+              address: this.userAddress,
+              chain: this.connectedChain,
+              balance: this.balance,
+            });
+          }, 100);
+        }
       }
     } catch (error) {
       console.error('Failed to restore Linera wallet state:', error);
@@ -345,6 +377,8 @@ class LineraWalletService {
       // Also save to userBalance for Redux
       if (typeof window !== 'undefined') {
         localStorage.setItem('userBalance', amount.toString());
+        // Mark session as unlocked so page navigation doesn't require re-unlock
+        sessionStorage.setItem('linera_session_unlocked', 'true');
       }
 
       // Notify listeners
@@ -394,7 +428,9 @@ class LineraWalletService {
     }
 
     try {
-      console.log('Unlocking native wallet...');
+      console.log('=== UNLOCKING WALLET ===');
+      console.log('localStorage.userBalance:', localStorage.getItem('userBalance'));
+      console.log('linera_wallet_state:', localStorage.getItem('linera_wallet_state'));
 
       // Load encrypted wallet
       const encryptedWallet = loadEncryptedWallet();
@@ -423,20 +459,35 @@ class LineraWalletService {
         this.signer = null;
       }
 
-      // Restore balance from local state
-      const savedState = localStorage.getItem('linera_wallet_state');
-      if (savedState) {
-        const state = JSON.parse(savedState);
-        this.balance = state.balance || 0; // Default 0, NOT 1000
+      // Restore balance - ALWAYS prioritize userBalance (updated by games)
+      // over linera_wallet_state.balance (may be stale)
+      const userBalanceStr = localStorage.getItem('userBalance');
+      console.log('Raw userBalance from localStorage:', userBalanceStr);
+
+      if (userBalanceStr && !isNaN(parseFloat(userBalanceStr)) && parseFloat(userBalanceStr) >= 0) {
+        this.balance = parseFloat(userBalanceStr);
+        console.log('✅ Restored balance from userBalance:', this.balance);
       } else {
-        const userBalance = localStorage.getItem('userBalance');
-        this.balance = userBalance ? parseFloat(userBalance) : 0;
+        const savedState = localStorage.getItem('linera_wallet_state');
+        if (savedState) {
+          const state = JSON.parse(savedState);
+          this.balance = state.balance || 0;
+          console.log('⚠️ Restored balance from wallet state (fallback):', this.balance);
+        } else {
+          this.balance = 0;
+          console.log('⚠️ No balance found, defaulting to 0');
+        }
       }
 
-      console.log(`Wallet unlocked with balance: ${this.balance} LINERA`);
+      console.log(`=== WALLET UNLOCKED with balance: ${this.balance} LINERA ===`);
 
       // Persist state
       this._persistState();
+
+      // Mark session as unlocked so page navigation doesn't require re-unlock
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('linera_session_unlocked', 'true');
+      }
 
       // Notify listeners
       this._notifyListeners('connected', {
@@ -636,6 +687,10 @@ class LineraWalletService {
     this.signer = null;
     this.isUnlocked = false;
     this._persistState();
+    // Clear session unlock flag
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('linera_session_unlocked');
+    }
     this._notifyListeners('locked', null);
   }
 
@@ -736,10 +791,9 @@ class LineraWalletService {
    * Disconnect wallet
    */
   async disconnect() {
-    // Save balance to userBalance before clearing
-    if (typeof window !== 'undefined' && this.balance > 0) {
-      localStorage.setItem('userBalance', this.balance.toString());
-    }
+    // DON'T overwrite localStorage.userBalance - it has the most accurate balance from games
+    // The balance in this.balance might be stale if games updated Redux but not wallet service
+    console.log('Disconnecting wallet. Preserving localStorage.userBalance:', localStorage.getItem('userBalance'));
 
     this.userOwner = null;
     this.userAddress = null;
@@ -749,6 +803,10 @@ class LineraWalletService {
     this.signer = null;
     this.isUnlocked = false;
     this._clearPersistedState();
+    // Clear session unlock flag
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('linera_session_unlocked');
+    }
     this._notifyListeners('disconnected', null);
   }
 

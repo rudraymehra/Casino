@@ -44,6 +44,19 @@ export function useLineraWallet() {
           setNeedsPassword(true);
           setIsConnected(false);
           break;
+        case 'needsUnlock':
+          // Wallet exists but needs password - show stored data but not connected
+          setNeedsPassword(true);
+          setIsConnected(false);
+          setOwner(data.owner);
+          setAddress(data.address);
+          setChainId(data.chain);
+          setBalance(data.balance || 0);
+          break;
+        case 'locked':
+          setIsConnected(false);
+          setNeedsPassword(true);
+          break;
         case 'balanceChanged':
           setBalance(data.balance);
           break;
@@ -54,13 +67,19 @@ export function useLineraWallet() {
     };
 
     listenerRef.current = lineraWalletService.addListener(handleEvent);
-    
+
     // Check if already connected
     if (lineraWalletService.isConnected()) {
       setIsConnected(true);
       setOwner(lineraWalletService.userOwner);
       setAddress(lineraWalletService.userAddress);
       setChainId(lineraWalletService.connectedChain);
+      setBalance(lineraWalletService.getBalance());
+    } else if (lineraWalletService.needsUnlock()) {
+      // Has wallet but needs password
+      setNeedsPassword(true);
+      setOwner(lineraWalletService.userOwner);
+      setAddress(lineraWalletService.userAddress);
       setBalance(lineraWalletService.getBalance());
     }
 
@@ -115,6 +134,14 @@ export function useLineraWallet() {
     }
   }, []);
 
+  const lockWallet = useCallback(() => {
+    lineraWalletService.lockWallet();
+    setIsConnected(false);
+    setNeedsPassword(true);
+  }, []);
+
+  const isLocked = !isConnected && needsPassword;
+
   return {
     isConnected,
     isConnecting,
@@ -127,6 +154,8 @@ export function useLineraWallet() {
     connect,
     disconnect,
     requestFaucet,
+    lockWallet,
+    isLocked,
     config: LINERA_CONFIG,
   };
 }

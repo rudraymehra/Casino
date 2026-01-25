@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { setBalance } from '@/store/balanceSlice';
 import WalletPasswordModal from './WalletPasswordModal';
 import { hasStoredWallet } from '@/utils/lineraWalletCrypto';
+import { lineraWalletService } from '@/services/LineraWalletService';
 
 export default function LineraConnectButton() {
   const {
@@ -34,13 +35,26 @@ export default function LineraConnectButton() {
     setIsClient(true);
   }, []);
 
-  // Sync wallet balance to Redux when it changes
+  // Sync wallet balance to Redux when connected
+  // Priority: localStorage userBalance (most recent from game wins/losses) > lineraBalance
   useEffect(() => {
-    if (hookIsConnected && lineraBalance > 0) {
-      dispatch(setBalance(lineraBalance.toString()));
-      // Also save to localStorage for persistence
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('userBalance', lineraBalance.toString());
+    if (hookIsConnected) {
+      // Check localStorage for the most recent balance (from game play)
+      const storedBalance = typeof window !== 'undefined' ? localStorage.getItem('userBalance') : null;
+      const storedBalanceNum = storedBalance ? parseFloat(storedBalance) : 0;
+
+      // Use stored balance if it's valid and different from lineraBalance
+      // This preserves balance after game wins/losses
+      if (storedBalanceNum > 0) {
+        dispatch(setBalance(storedBalance));
+        setDisplayBalance(storedBalanceNum);
+        console.log('Restored balance from localStorage:', storedBalanceNum);
+      } else if (lineraBalance > 0) {
+        dispatch(setBalance(lineraBalance.toString()));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('userBalance', lineraBalance.toString());
+        }
+        console.log('Using lineraBalance:', lineraBalance);
       }
     }
   }, [hookIsConnected, lineraBalance, dispatch]);
@@ -67,6 +81,21 @@ export default function LineraConnectButton() {
       setDisplayBalance(lineraBalance);
     }
   }, [userBalance, lineraBalance]);
+
+  // Sync Redux balance changes back to wallet service
+  // This ensures the wallet service has the latest balance after game wins/losses
+  const prevBalanceRef = useRef(userBalance);
+  useEffect(() => {
+    if (hookIsConnected && userBalance !== prevBalanceRef.current) {
+      const newBalance = parseFloat(userBalance || '0');
+      // Only update if balance actually changed and is valid
+      if (!isNaN(newBalance) && newBalance >= 0) {
+        lineraWalletService.setBalance(newBalance);
+        console.log('Synced Redux balance to wallet service:', newBalance);
+      }
+      prevBalanceRef.current = userBalance;
+    }
+  }, [hookIsConnected, userBalance]);
 
   const balance = displayBalance || 0;
 
