@@ -85,15 +85,17 @@ export default function WalletPasswordModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
       />
 
-      {/* Modal */}
-      <div className="relative bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+      {/* Centering wrapper */}
+      <div className="flex min-h-full items-center justify-center p-4">
+        {/* Modal */}
+        <div className="relative bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-md p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
@@ -248,6 +250,7 @@ export default function WalletPasswordModal({
             Powered by <span className="text-emerald-400">Linera</span> Conway Testnet
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
