@@ -9,6 +9,18 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Required for @linera/client WASM multi-threading (SharedArrayBuffer)
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+        ],
+      },
+    ];
+  },
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
