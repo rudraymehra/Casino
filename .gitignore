@@ -49,3 +49,4 @@ coverage/
 *.seed
 *.pid.lock
 .env.vercel
+.vercel
