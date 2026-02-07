@@ -152,8 +152,9 @@ class PythEntropyService {
       value: randomValue,
       max,
       proof: mockProof,
-      verified: true, // In mock mode, always "verified"
-      method: 'pyth-entropy-mock',
+      verified: false, // WARNING: Mock mode - NOT cryptographically verified
+      method: 'mock-local-random',
+      warning: 'MOCK MODE: This random value is NOT from Pyth Entropy and is NOT verifiable on-chain',
     };
 
     console.log('🎲 Pyth Entropy random generated:', {
@@ -212,7 +213,7 @@ class PythEntropyService {
     return {
       minePositions: Array.from(positions),
       proofs: results,
-      verified: true,
+      verified: !this.mockMode,
     };
   }
 
@@ -244,8 +245,8 @@ class PythEntropyService {
    */
   async verifyResult(result) {
     if (this.mockMode) {
-      // In mock mode, always return true
-      return true;
+      // Mock mode cannot provide real verification
+      return false;
     }
 
     // Real verification would check the proof on-chain

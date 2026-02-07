@@ -8,7 +8,7 @@
 // IMPORTANT: These MUST match .env.local values
 const DEPLOYED_CONTRACT = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
-  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '23d04c9fab6a7ac0c8d3896e7128ab17407ac4e4d5bbef58bb2505ae9206594d',
   deployedAt: '2026-01-25T00:00:00Z',
   sdkVersion: '0.15.8',
 };
@@ -17,14 +17,28 @@ export const LINERA_CONFIG = {
   // Linera Network Configuration - REAL BLOCKCHAIN
   NETWORK: {
     name: 'Linera Conway Testnet',
-    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://rpc.testnet-conway.linera.net',
+    // Local linera service URL for application-level GraphQL (queries/mutations)
+    // The public RPC only serves node-level queries, not application GraphQL.
+    // You must run: linera service --port 8080
+    rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost:8080',
+    // Public node RPC for node-level operations (chain info, etc.)
+    nodeRpcUrl: process.env.NEXT_PUBLIC_LINERA_NODE_RPC || 'https://rpc.testnet-conway.linera.net',
     explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
-    faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET || 'https://faucet.testnet-conway.linera.net',
+    faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET_URL || process.env.NEXT_PUBLIC_LINERA_FAUCET || 'https://faucet.testnet-conway.linera.net',
     chainId: DEPLOYED_CONTRACT.chainId,
     applicationId: DEPLOYED_CONTRACT.applicationId,
     currency: 'LINERA',
     currencySymbol: 'LINERA',
     currencyDecimals: 18
+  },
+
+  // Operation types for the casino contract
+  OPERATIONS: {
+    LOG_GAME_RESULT: 'LogGameResult',
+    PLACE_BET: 'PlaceBet',
+    REVEAL: 'Reveal',
+    DEPOSIT: 'Deposit',
+    WITHDRAW: 'Withdraw',
   },
 
   // Casino Contract Configuration
@@ -94,6 +108,13 @@ export const LINERA_CONFIG = {
    */
   getGraphQLEndpoint() {
     return `${this.NETWORK.rpcUrl}/chains/${this.NETWORK.chainId}/applications/${this.NETWORK.applicationId}`;
+  },
+
+  /**
+   * Get explorer URL for a block on a specific chain
+   */
+  getBlockExplorerUrl(chainId, blockHeight) {
+    return `${this.NETWORK.explorerUrl}/chains/${chainId || this.NETWORK.chainId}/blocks/${blockHeight}`;
   },
 
   /**

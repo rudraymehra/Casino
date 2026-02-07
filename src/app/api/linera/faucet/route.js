@@ -45,20 +45,23 @@ async function faucetGraphQL(query, variables = {}) {
 }
 
 /**
- * Generate a new key pair for wallet creation
- * Returns public key in format expected by Linera faucet
+ * Generate a new Ed25519 key pair for wallet creation.
+ * Linera uses Ed25519 keys. Node.js crypto supports Ed25519 natively since v15.
  */
 function generateKeyPair() {
-  // Generate 32 random bytes for private key
-  const privateKey = crypto.randomBytes(32);
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
+    publicKeyEncoding: { type: 'spki', format: 'der' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'der' },
+  });
 
-  // For Linera, public key is derived from private key
-  // Using simple hash for demo - in production use proper Ed25519
-  const publicKeyHash = crypto.createHash('sha256').update(privateKey).digest();
+  // Ed25519 SPKI DER public key: last 32 bytes are the raw public key
+  const rawPublicKey = publicKey.subarray(publicKey.length - 32);
+  // Ed25519 PKCS8 DER private key: last 32 bytes are the raw seed (private key)
+  const rawPrivateKey = privateKey.subarray(privateKey.length - 32);
 
   return {
-    privateKey: privateKey.toString('hex'),
-    publicKey: publicKeyHash.toString('hex'),
+    privateKey: rawPrivateKey.toString('hex'),
+    publicKey: rawPublicKey.toString('hex'),
   };
 }
 

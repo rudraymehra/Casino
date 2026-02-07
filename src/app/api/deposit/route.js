@@ -13,14 +13,14 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Linera Configuration - Hardcoded for production reliability
+// Linera Configuration - loaded from environment
+// NOTE: Application-level GraphQL requires `linera service` running locally.
 const LINERA_CONFIG = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
-  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
-  // FORCE correct RPC URL - env var might be set wrong
-  rpcUrl: 'https://rpc.testnet-conway.linera.net',
-  faucetUrl: 'https://faucet.testnet-conway.linera.net',
-  explorerUrl: 'https://explorer.testnet-conway.linera.net',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '23d04c9fab6a7ac0c8d3896e7128ab17407ac4e4d5bbef58bb2505ae9206594d',
+  rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost:8080',
+  faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET_URL || 'https://faucet.testnet-conway.linera.net',
+  explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
 };
 
 // Deposit limits

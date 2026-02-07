@@ -3,13 +3,13 @@
  *
  * Linera Config:
  * - Chain ID: d971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd
- * - App ID: e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194
+ * - App ID: 23d04c9fab6a7ac0c8d3896e7128ab17407ac4e4d5bbef58bb2505ae9206594d
  * - Explorer: https://explorer.testnet-conway.linera.net
  */
 
 // Linera application IDs
 export const lineraChainId = process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd';
-export const lineraAppId = process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194';
+export const lineraAppId = process.env.NEXT_PUBLIC_LINERA_APP_ID || '23d04c9fab6a7ac0c8d3896e7128ab17407ac4e4d5bbef58bb2505ae9206594d';
 export const lineraExplorerUrl = 'https://explorer.testnet-conway.linera.net';
 
 // Legacy exports for compatibility (deprecated - use Linera IDs above)

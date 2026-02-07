@@ -7,14 +7,16 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-// Linera Configuration - Hardcoded for production reliability
-const LINERA_CONFIG = {
+// Linera Configuration - loaded from environment / config
+// NOTE: Application-level GraphQL requires `linera service` running locally.
+// The public RPC does NOT serve application endpoints.
+const LINERA_CFG = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
-  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
-  // FORCE correct RPC URL - env var might be set wrong
-  rpcUrl: 'https://rpc.testnet-conway.linera.net',
-  faucetUrl: 'https://faucet.testnet-conway.linera.net',
-  explorerUrl: 'https://explorer.testnet-conway.linera.net',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '23d04c9fab6a7ac0c8d3896e7128ab17407ac4e4d5bbef58bb2505ae9206594d',
+  // Local linera service for application queries (run: linera service --port 8080)
+  rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost:8080',
+  faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET_URL || 'https://faucet.testnet-conway.linera.net',
+  explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
 };
 
 /**
@@ -59,7 +61,15 @@ async function lineraGraphQL(endpoint, query, variables = {}, isMutation = false
  * Get application GraphQL endpoint
  */
 function getAppEndpoint() {
-  return `${LINERA_CONFIG.rpcUrl}/chains/${LINERA_CONFIG.chainId}/applications/${LINERA_CONFIG.applicationId}`;
+  // This endpoint requires `linera service` to be running locally
+  return `${LINERA_CFG.rpcUrl}/chains/${LINERA_CFG.chainId}/applications/${LINERA_CFG.applicationId}`;
+}
+
+function getServiceRequirementMessage() {
+  return (
+    'Application-level GraphQL requires `linera service --port 8080` to be running locally. ' +
+    'The public RPC (rpc.testnet-conway.linera.net) only serves node-level queries.'
+  );
 }
 
 /**
@@ -378,10 +388,10 @@ export async function POST(request) {
         error: 'Blockchain unavailable - cannot process bet',
         details: {
           message: blockchainError.message,
-          chainId: LINERA_CONFIG.chainId,
-          applicationId: LINERA_CONFIG.applicationId,
+          chainId: LINERA_CFG.chainId,
+          applicationId: LINERA_CFG.applicationId,
           endpoint: getAppEndpoint(),
-          hint: 'The casino smart contract may not be deployed or the Linera node is unreachable',
+          hint: getServiceRequirementMessage(),
         },
         // Include proof data so user can verify locally if needed
         proof: {
@@ -410,8 +420,8 @@ export async function POST(request) {
       proof: {
         commitHash: commitHash.toString('hex'),
         revealValue: revealValue.toString('hex'),
-        chainId: LINERA_CONFIG.chainId,
-        applicationId: LINERA_CONFIG.applicationId,
+        chainId: LINERA_CFG.chainId,
+        applicationId: LINERA_CFG.applicationId,
         timestamp: Date.now(),
         blockchainMode: blockchainResult.mode,
         blockchainSubmitted: blockchainResult.success,
@@ -420,8 +430,8 @@ export async function POST(request) {
       },
 
       // Explorer link
-      explorerUrl: `${LINERA_CONFIG.explorerUrl}/chains/${LINERA_CONFIG.chainId}`,
-      applicationUrl: `${LINERA_CONFIG.explorerUrl}/applications/${LINERA_CONFIG.applicationId}`,
+      explorerUrl: `${LINERA_CFG.explorerUrl}/chains/${LINERA_CFG.chainId}`,
+      applicationUrl: `${LINERA_CFG.explorerUrl}/applications/${LINERA_CFG.applicationId}`,
 
       // Player info
       playerAddress: playerAddress || 'anonymous',
@@ -455,7 +465,7 @@ export async function GET() {
   let appStatus = 'unknown';
 
   try {
-    const response = await fetch(`${LINERA_CONFIG.rpcUrl}/health`);
+    const response = await fetch(`${LINERA_CFG.rpcUrl}/health`);
     nodeStatus = response.ok ? 'connected' : 'error';
   } catch {
     nodeStatus = 'disconnected';
@@ -480,9 +490,9 @@ export async function GET() {
     nodeStatus,
     applicationStatus: appStatus,
     config: {
-      chainId: LINERA_CONFIG.chainId,
-      applicationId: LINERA_CONFIG.applicationId,
-      rpcUrl: LINERA_CONFIG.rpcUrl,
+      chainId: LINERA_CFG.chainId,
+      applicationId: LINERA_CFG.applicationId,
+      rpcUrl: LINERA_CFG.rpcUrl,
       applicationEndpoint: getAppEndpoint(),
     },
   });

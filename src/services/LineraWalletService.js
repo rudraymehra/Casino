@@ -22,8 +22,8 @@ import * as LineraClientService from './LineraClientService';
 
 const LINERA_CONFIG = {
   chainId: process.env.NEXT_PUBLIC_LINERA_CHAIN_ID || 'd971cc5549dfa14a9a4963c7547192c22bf6c2c8f81d1bb9e5cd06dac63e68fd',
-  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || 'e230e675d2ade7ac7c3351d57c7dff2ff59c7ade94cb615ebe77149113b6d194',
-  rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'https://rpc.testnet-conway.linera.net',
+  applicationId: process.env.NEXT_PUBLIC_LINERA_APP_ID || '23d04c9fab6a7ac0c8d3896e7128ab17407ac4e4d5bbef58bb2505ae9206594d',
+  rpcUrl: process.env.NEXT_PUBLIC_LINERA_RPC || 'http://localhost:8080',
   faucetUrl: process.env.NEXT_PUBLIC_LINERA_FAUCET || 'https://faucet.testnet-conway.linera.net',
   explorerUrl: process.env.NEXT_PUBLIC_LINERA_EXPLORER || 'https://explorer.testnet-conway.linera.net',
 };
@@ -58,9 +58,10 @@ class LineraWalletService {
     this.isUnlocked = false;       // Lock state
 
     // Linera SDK client instances
-    this.lineraClient = null;
-    this.lineraWallet = null;
-    this.signer = null;            // PrivateKey signer for transaction signing
+    this.lineraClient = null;    // SDK Client instance
+    this.lineraWallet = null;    // SDK Wallet
+    this.signer = null;          // PrivateKey signer for transaction signing
+    this.casinoApp = null;       // Application handle for casino contract
     this.clientInitialized = false;
 
     // Restore persisted state on construction
@@ -169,6 +170,28 @@ class LineraWalletService {
   _clearPersistedState() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('linera_wallet_state');
+  }
+
+  /**
+   * Initialize SDK Client -> Chain -> Application handle.
+   * Requires signer and lineraWallet to be set.
+   */
+  async _initializeSDKApp() {
+    if (!this.signer || !this.clientInitialized) {
+      this.casinoApp = null;
+      return;
+    }
+    try {
+      // The wallet may come from the faucet or be loaded from the SDK
+      // For now, create a Client with whatever wallet/signer we have
+      const client = await LineraClientService.createClient(this.lineraWallet, this.signer);
+      this.lineraClient = client;
+      const chain = await LineraClientService.getChain(client, this.connectedChain);
+      this.casinoApp = await LineraClientService.getApplication(chain);
+    } catch (error) {
+      console.warn('Failed to initialize SDK app handle:', error.message);
+      this.casinoApp = null;
+    }
   }
 
   /**
@@ -339,11 +362,13 @@ class LineraWalletService {
       this.balance = amount; // Real balance from faucet
       this.walletProvider = WALLET_PROVIDERS.NATIVE;
 
-      // Create signer for transaction signing
+      // Create signer and SDK application handle for transaction signing
       try {
         this.signer = await LineraClientService.createSigner(privateKeyHex);
+        await this._initializeSDKApp();
       } catch (error) {
         this.signer = null;
+        this.casinoApp = null;
       }
 
       // Persist state
@@ -419,11 +444,13 @@ class LineraWalletService {
       this.isUnlocked = true;
       this.walletProvider = WALLET_PROVIDERS.NATIVE;
 
-      // Create signer for transaction signing
+      // Create signer and SDK application handle for transaction signing
       try {
         this.signer = await LineraClientService.createSigner(privateKeyHex);
+        await this._initializeSDKApp();
       } catch (error) {
         this.signer = null;
+        this.casinoApp = null;
       }
 
       // Restore balance - ALWAYS prioritize userBalance (updated by games)
@@ -510,18 +537,14 @@ class LineraWalletService {
     try {
       let result;
 
-      if (this.signer) {
-        // Use signed transaction
-        const depositResult = await LineraClientService.deposit(this.signer, depositAmount);
-
-        if (!depositResult?.deposit) {
-          throw new Error('Deposit operation failed on contract');
-        }
+      if (this.casinoApp) {
+        // Use SDK Application.query() for direct contract interaction
+        const depositResult = await LineraClientService.deposit(this.casinoApp, depositAmount);
 
         result = {
           success: true,
           amount: depositAmount,
-          blockchain: { submitted: true, mode: 'signed-client' },
+          blockchain: { submitted: true, mode: 'sdk-client' },
         };
       } else {
         // Fall back to API
@@ -575,18 +598,14 @@ class LineraWalletService {
     try {
       let result;
 
-      if (this.signer) {
-        // Use signed transaction
-        const withdrawResult = await LineraClientService.withdraw(this.signer, withdrawAmount);
-
-        if (!withdrawResult?.withdraw) {
-          throw new Error('Withdraw operation failed on contract');
-        }
+      if (this.casinoApp) {
+        // Use SDK Application.query() for direct contract interaction
+        const withdrawResult = await LineraClientService.withdraw(this.casinoApp, withdrawAmount);
 
         result = {
           success: true,
           amount: withdrawAmount,
-          blockchain: { submitted: true, mode: 'signed-client' },
+          blockchain: { submitted: true, mode: 'sdk-client' },
         };
       } else {
         // Fall back to API
@@ -626,6 +645,8 @@ class LineraWalletService {
   lockWallet() {
     this.privateKey = null;
     this.signer = null;
+    this.casinoApp = null;
+    this.lineraClient = null;
     this.isUnlocked = false;
     this._persistState();
     // Clear session unlock flag
@@ -733,6 +754,8 @@ class LineraWalletService {
     this.balance = 0;
     this.privateKey = null;
     this.signer = null;
+    this.casinoApp = null;
+    this.lineraClient = null;
     this.isUnlocked = false;
     this._clearPersistedState();
     // Clear session unlock flag
@@ -845,35 +868,27 @@ class LineraWalletService {
 
       let result;
 
-      // If we have a signer, use client-side signed transactions
-      if (this.signer) {
+      // If we have the SDK app handle, use it for direct contract interaction
+      if (this.casinoApp) {
 
         try {
-          // Step 1: Place bet with signature
+          // Step 1: Place bet via SDK
           const placeBetResult = await LineraClientService.placeBet(
-            this.signer,
+            this.casinoApp,
             gameType,
             bet,
             commitHash,
             gameParams
           );
 
-          if (!placeBetResult?.placeBet) {
-            throw new Error('PlaceBet operation failed on contract');
-          }
-
           const gameId = Date.now(); // Use timestamp as game ID
 
-          // Step 2: Reveal with signature
+          // Step 2: Reveal via SDK
           const revealResult = await LineraClientService.reveal(
-            this.signer,
+            this.casinoApp,
             gameId,
             revealValue
           );
-
-          if (!revealResult?.reveal) {
-            throw new Error('Reveal operation failed on contract');
-          }
 
           // Calculate outcome locally (same as contract)
           const outcome = this._calculateOutcome(gameType, revealBytes, gameParams);
@@ -894,7 +909,7 @@ class LineraWalletService {
               chainId: LINERA_CONFIG.chainId,
               applicationId: LINERA_CONFIG.applicationId,
               timestamp: Date.now(),
-              blockchainMode: 'signed-client',
+              blockchainMode: 'sdk-client',
               blockchainSubmitted: true,
             },
           };

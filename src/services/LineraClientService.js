@@ -1,55 +1,49 @@
 /**
- * Linera Client Service - Browser-side Transaction Signing
+ * Linera Client Service - Browser-side SDK Integration
  *
- * Uses @linera/client WASM module to sign transactions on the client side.
- * This is required because Linera operations need authenticated_signer().
+ * Uses @linera/client WASM module for real blockchain interaction.
+ * The SDK provides: Faucet, Client, Chain, Application, signer.PrivateKey
  *
- * Flow:
- * 1. Initialize WASM module
- * 2. Create/load wallet with private key
- * 3. Sign mutations before sending to blockchain
+ * Correct interaction flow:
+ *   initialize WASM -> Faucet.createWallet() -> Client(wallet, signer)
+ *   -> client.chain(chainId) -> chain.application(appId) -> app.query(graphql)
+ *
+ * NOTE: This module only works in the browser (WASM requirement).
+ * Server-side code should use LineraClient.js instead.
  */
 
 import { LINERA_CONFIG } from '@/config/lineraConfig';
 
-// Dynamic import for WASM - only works in browser
-let lineraClient = null;
+let lineraModule = null;
 let isInitialized = false;
 let initPromise = null;
 
 /**
- * Initialize the Linera WASM client
- * Must be called before any operations
+ * Initialize the Linera WASM module.
+ * Must be called before any SDK operations.
  */
 export async function initializeLineraClient() {
-  if (isInitialized) {
-    return true;
-  }
-
-  if (initPromise) {
-    return initPromise;
-  }
+  if (isInitialized) return true;
+  if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
       if (typeof window === 'undefined') {
-        console.log('LineraClientService: Server-side, skipping WASM init');
+        console.warn('LineraClientService: Server-side environment detected, WASM not available');
         return false;
       }
 
       console.log('Initializing Linera WASM client...');
 
-      // Dynamic import of the client module
       const clientModule = await import('@linera/client');
 
-      // Initialize WASM
+      // Call the default export to initialize WASM runtime
       if (clientModule.default) {
         await clientModule.default();
       }
 
-      lineraClient = clientModule;
+      lineraModule = clientModule;
       isInitialized = true;
-
       console.log('Linera WASM client initialized successfully');
       return true;
     } catch (error) {
@@ -63,241 +57,216 @@ export async function initializeLineraClient() {
 }
 
 /**
- * Create a PrivateKey signer from hex private key
- * Uses ethers-compatible signing (EIP-191)
+ * Create a wallet via the Linera Faucet.
+ * Returns { wallet, owner, chainId }.
+ */
+export async function createWalletFromFaucet() {
+  if (!isInitialized) {
+    const ok = await initializeLineraClient();
+    if (!ok) throw new Error('WASM not initialized');
+  }
+
+  const { Faucet } = lineraModule;
+  const faucetUrl = LINERA_CONFIG.NETWORK.faucetUrl;
+  const faucet = new Faucet(faucetUrl);
+
+  const wallet = await faucet.createWallet();
+  return wallet;
+}
+
+/**
+ * Claim a new chain from the faucet for an existing wallet.
+ */
+export async function claimChainFromFaucet(wallet, owner) {
+  if (!isInitialized) {
+    const ok = await initializeLineraClient();
+    if (!ok) throw new Error('WASM not initialized');
+  }
+
+  const { Faucet } = lineraModule;
+  const faucetUrl = LINERA_CONFIG.NETWORK.faucetUrl;
+  const faucet = new Faucet(faucetUrl);
+
+  return faucet.claimChain(wallet, owner);
+}
+
+/**
+ * Create a PrivateKey signer from a hex private key.
  */
 export async function createSigner(privateKeyHex) {
   if (!isInitialized) {
-    await initializeLineraClient();
+    const ok = await initializeLineraClient();
+    if (!ok) throw new Error('WASM not initialized');
   }
 
-  if (!lineraClient?.signer?.PrivateKey) {
-    // Fallback: try @linera/signer package directly
-    try {
-      const { PrivateKey } = await import('@linera/signer');
-      return new PrivateKey(privateKeyHex);
-    } catch (error) {
-      console.error('Failed to import PrivateKey signer:', error);
-      throw new Error('Linera signer not available');
-    }
+  // Try the SDK's signer first
+  if (lineraModule?.signer?.PrivateKey) {
+    return new lineraModule.signer.PrivateKey(privateKeyHex);
   }
 
-  return new lineraClient.signer.PrivateKey(privateKeyHex);
+  // Fallback: import @linera/signer directly
+  const { PrivateKey } = await import('@linera/signer');
+  return new PrivateKey(privateKeyHex);
 }
 
 /**
- * Create a random signer (for testing)
- */
-export async function createRandomSigner() {
-  if (!isInitialized) {
-    await initializeLineraClient();
-  }
-
-  try {
-    const { PrivateKey } = await import('@linera/signer');
-    return PrivateKey.createRandom();
-  } catch (error) {
-    console.error('Failed to create random signer:', error);
-    throw error;
-  }
-}
-
-/**
- * Sign a message with the signer
- * @param {Object} signer - PrivateKey signer instance
- * @param {string} owner - Owner address (must match signer)
- * @param {Uint8Array} message - Message to sign
- * @returns {Promise<string>} Signature
- */
-export async function signMessage(signer, owner, message) {
-  if (!signer) {
-    throw new Error('Signer not provided');
-  }
-
-  // Verify the signer owns this address
-  const containsKey = await signer.containsKey(owner);
-  if (!containsKey) {
-    throw new Error('Signer does not contain key for this owner');
-  }
-
-  return signer.sign(owner, message);
-}
-
-/**
- * Get the address/owner from a signer
+ * Get the owner/address from a signer.
  */
 export function getSignerAddress(signer) {
-  if (!signer) {
-    throw new Error('Signer not provided');
-  }
+  if (!signer) throw new Error('Signer not provided');
   return signer.address();
 }
 
 /**
- * Make a signed GraphQL mutation to the Linera application
- * @param {Object} signer - PrivateKey signer
- * @param {string} mutation - GraphQL mutation string
- * @param {Object} variables - GraphQL variables
+ * Create a Client instance from a wallet and signer.
+ * The Client constructor in WASM is async (returns a Promise).
+ * The Client is the main entry point for chain/application interactions.
  */
-export async function signedMutation(signer, mutation, variables = {}) {
-  const endpoint = LINERA_CONFIG.getGraphQLEndpoint();
-  const owner = getSignerAddress(signer);
-
-  console.log('Executing signed mutation...');
-  console.log(`   Endpoint: ${endpoint}`);
-  console.log(`   Owner: ${owner.slice(0, 16)}...`);
-
-  // For Linera, the signature needs to be included with the operation
-  // The mutation payload needs to be signed and included in the request
-
-  // Create the operation payload
-  const operationPayload = {
-    query: mutation,
-    variables,
-  };
-
-  // Convert to bytes for signing
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(operationPayload));
-
-  // Sign the payload
-  const signature = await signMessage(signer, owner, payloadBytes);
-
-  // Make the request with signature header
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Linera-Owner': owner,
-      'X-Linera-Signature': signature,
-    },
-    body: JSON.stringify(operationPayload),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Linera mutation failed: ${response.status} - ${text}`);
+export async function createClient(wallet, signer, options = null) {
+  if (!isInitialized) {
+    const ok = await initializeLineraClient();
+    if (!ok) throw new Error('WASM not initialized');
   }
 
-  const result = await response.json();
+  const { Client } = lineraModule;
+  // WASM Client constructor returns a Promise
+  return await new Client(wallet, signer, options);
+}
 
-  if (result.errors) {
-    throw new Error(`Linera GraphQL error: ${result.errors.map(e => e.message).join(', ')}`);
+/**
+ * Get a Chain handle from a Client.
+ * client.chain() is async in the WASM SDK.
+ */
+export async function getChain(client, chainId) {
+  const cid = chainId || LINERA_CONFIG.NETWORK.chainId;
+  return await client.chain(cid);
+}
+
+/**
+ * Get an Application handle from a Chain.
+ * chain.application() is async in the WASM SDK.
+ */
+export async function getApplication(chain, applicationId) {
+  const appId = applicationId || LINERA_CONFIG.NETWORK.applicationId;
+  return await chain.application(appId);
+}
+
+/**
+ * Execute a GraphQL query/mutation on the casino application via the SDK.
+ * app.query() returns a JSON string, so we parse it.
+ */
+export async function applicationQuery(app, graphqlString, options = null) {
+  const raw = await app.query(graphqlString, options);
+  // The SDK returns a JSON string; parse it to extract the data
+  try {
+    const parsed = JSON.parse(raw);
+    // Linera wraps in { data: ... }, unwrap if present
+    return parsed.data !== undefined ? parsed.data : parsed;
+  } catch {
+    return raw;
   }
-
-  return result.data;
 }
 
 /**
- * Execute a deposit operation (signed)
+ * Full end-to-end connection: init WASM -> Faucet -> Wallet -> Signer ->
+ * claimChain -> Client -> Chain -> Application.
+ * Returns { client, chain, app, chainId, owner } ready for use.
  */
-export async function deposit(signer, amount) {
+export async function connectToTestnet(privateKeyHex = null) {
+  await initializeLineraClient();
+
+  const { Faucet } = lineraModule;
+  const { ethers } = await import('ethers');
+  const { PrivateKey } = await import('@linera/signer');
+
+  // Create or use provided key
+  const wallet_ = privateKeyHex
+    ? new ethers.Wallet(privateKeyHex)
+    : ethers.Wallet.createRandom();
+  const signer = new PrivateKey(wallet_.privateKey);
+  const owner = signer.address();
+
+  // Faucet interaction
+  const faucetUrl = LINERA_CONFIG.NETWORK.faucetUrl;
+  const faucet = new Faucet(faucetUrl);
+  const lineraWallet = await faucet.createWallet();
+  const chainId = await faucet.claimChain(lineraWallet, owner);
+
+  // Create full client
+  const client = await new lineraModule.Client(lineraWallet, signer);
+  const chain = await client.chain(chainId);
+  const app = await chain.application(LINERA_CONFIG.NETWORK.applicationId);
+
+  return { client, chain, app, chainId, owner, signer };
+}
+
+// ----- Casino-specific operations -----
+
+/**
+ * Deposit tokens into the casino contract.
+ */
+export async function deposit(app, amount) {
   const amountAttos = Math.floor(parseFloat(amount) * 1e18).toString();
-
-  const mutation = `
-    mutation Deposit($amount: String!) {
-      deposit(amount: $amount)
-    }
-  `;
-
-  return signedMutation(signer, mutation, { amount: amountAttos });
+  const mutation = `mutation { deposit(amount: "${amountAttos}") }`;
+  return applicationQuery(app, mutation);
 }
 
 /**
- * Execute a withdrawal operation (signed)
+ * Withdraw tokens from the casino contract.
  */
-export async function withdraw(signer, amount) {
+export async function withdraw(app, amount) {
   const amountAttos = Math.floor(parseFloat(amount) * 1e18).toString();
-
-  const mutation = `
-    mutation Withdraw($amount: String!) {
-      withdraw(amount: $amount)
-    }
-  `;
-
-  return signedMutation(signer, mutation, { amount: amountAttos });
+  const mutation = `mutation { withdraw(amount: "${amountAttos}") }`;
+  return applicationQuery(app, mutation);
 }
 
 /**
- * Place a bet operation (signed)
+ * Place a bet on the casino contract.
  */
-export async function placeBet(signer, gameType, betAmount, commitHash, gameParams = {}) {
+export async function placeBet(app, gameType, betAmount, commitHash, gameParams = {}) {
   const amountAttos = Math.floor(parseFloat(betAmount) * 1e18).toString();
+  const paramsJson = JSON.stringify(gameParams);
 
   const mutation = `
-    mutation PlaceBet($gameType: String!, $betAmount: String!, $commitHash: String!, $gameParams: String!) {
+    mutation {
       placeBet(
-        gameType: $gameType
-        betAmount: $betAmount
-        commitHash: $commitHash
-        gameParams: $gameParams
+        gameType: "${gameType}"
+        betAmount: "${amountAttos}"
+        commitHash: "${commitHash}"
+        gameParams: ${JSON.stringify(paramsJson)}
       )
     }
   `;
 
-  return signedMutation(signer, mutation, {
-    gameType,
-    betAmount: amountAttos,
-    commitHash,
-    gameParams: JSON.stringify(gameParams),
-  });
+  return applicationQuery(app, mutation);
 }
 
 /**
- * Reveal operation (signed)
+ * Reveal the commit for a game.
  */
-export async function reveal(signer, gameId, revealValue) {
+export async function reveal(app, gameId, revealValue) {
   const mutation = `
-    mutation Reveal($gameId: Int!, $revealValue: String!) {
-      reveal(gameId: $gameId, revealValue: $revealValue)
+    mutation {
+      reveal(gameId: ${parseInt(gameId)}, revealValue: "${revealValue}")
     }
   `;
-
-  return signedMutation(signer, mutation, {
-    gameId: parseInt(gameId),
-    revealValue,
-  });
+  return applicationQuery(app, mutation);
 }
 
 /**
- * Query player balance (unsigned - read operation)
+ * Query player balance (read-only).
  */
-export async function queryBalance(owner) {
-  const endpoint = LINERA_CONFIG.getGraphQLEndpoint();
-
-  const query = `
-    query GetBalance($owner: String!) {
-      playerBalance(owner: $owner)
-    }
-  `;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query, variables: { owner } }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Balance query failed: ${response.status}`);
-  }
-
-  const result = await response.json();
-
-  if (result.errors) {
-    throw new Error(`Query error: ${result.errors.map(e => e.message).join(', ')}`);
-  }
-
-  const balanceAttos = result.data?.playerBalance || '0';
+export async function queryBalance(app, owner) {
+  const query = `query { playerBalance(owner: "${owner}") }`;
+  const result = await applicationQuery(app, query);
+  const balanceAttos = result?.playerBalance || '0';
   return parseFloat(balanceAttos) / 1e18;
 }
 
 /**
- * Query game history (unsigned - read operation)
+ * Query game history (read-only).
  */
-export async function queryGameHistory() {
-  const endpoint = LINERA_CONFIG.getGraphQLEndpoint();
-
+export async function queryGameHistory(app) {
   const query = `
     query {
       gameHistory {
@@ -310,40 +279,33 @@ export async function queryGameHistory() {
       }
     }
   `;
+  const result = await applicationQuery(app, query);
+  return result?.gameHistory || [];
+}
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`History query failed: ${response.status}`);
-  }
-
-  const result = await response.json();
-
-  if (result.errors) {
-    console.warn('Game history query error:', result.errors);
-    return [];
-  }
-
-  return result.data?.gameHistory || [];
+/**
+ * Query the chain's native token balance.
+ */
+export async function queryChainBalance(chain) {
+  return chain.balance();
 }
 
 export default {
   initializeLineraClient,
+  createWalletFromFaucet,
+  claimChainFromFaucet,
   createSigner,
-  createRandomSigner,
-  signMessage,
   getSignerAddress,
-  signedMutation,
+  createClient,
+  getChain,
+  getApplication,
+  applicationQuery,
+  connectToTestnet,
   deposit,
   withdraw,
   placeBet,
   reveal,
   queryBalance,
   queryGameHistory,
+  queryChainBalance,
 };

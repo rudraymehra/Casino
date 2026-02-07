@@ -1,6 +1,17 @@
 /**
- * Linera Blockchain Client
- * Gerçek Linera blockchain ile etkileşim için client
+ * Linera Blockchain Client (Server-Side)
+ *
+ * Server-side client that communicates with the Linera node service via HTTP/GraphQL.
+ * This uses the `linera service` proxy (default port 8080) which exposes
+ * application-level GraphQL endpoints at:
+ *   {serviceUrl}/chains/{chainId}/applications/{applicationId}
+ *
+ * The public RPC (rpc.testnet-conway.linera.net) does NOT serve application GraphQL.
+ * You must run `linera service --port 8080` locally for server-side operations.
+ *
+ * Casino contract GraphQL schema (from service.rs):
+ *   Queries:  nextGameId, totalFunds, playerBalance(owner), gameHistory, gameOutcome(gameId)
+ *   Mutations: deposit(amount), withdraw(amount), placeBet(gameType, betAmount, commitHash, gameParams), reveal(gameId, revealValue)
  */
 
 import axios from 'axios';
@@ -8,33 +19,34 @@ import { LINERA_CONFIG } from '../config/lineraConfig.js';
 
 export class LineraClient {
   constructor(config = {}) {
-    this.rpcUrl = config.rpcUrl || LINERA_CONFIG.NETWORK.rpcUrl;
+    this.serviceUrl = config.rpcUrl || LINERA_CONFIG.NETWORK.rpcUrl;
     this.chainId = config.chainId || LINERA_CONFIG.NETWORK.chainId;
     this.applicationId = config.applicationId || LINERA_CONFIG.NETWORK.applicationId;
     this.timeout = config.timeout || 10000;
-    
-    // HTTP client for GraphQL queries
+
     this.httpClient = axios.create({
-      baseURL: this.rpcUrl,
       timeout: this.timeout,
       headers: {
         'Content-Type': 'application/json',
-      }
+      },
     });
   }
 
   /**
-   * Execute a GraphQL query on Linera
-   * @param {string} query - GraphQL query
-   * @param {Object} variables - Query variables
-   * @returns {Promise<Object>} Query result
+   * Get the application-level GraphQL endpoint.
+   * Requires `linera service` to be running.
    */
-  async executeQuery(query, variables = {}) {
+  getAppEndpoint() {
+    return `${this.serviceUrl}/chains/${this.chainId}/applications/${this.applicationId}`;
+  }
+
+  /**
+   * Execute a GraphQL query against the casino application.
+   */
+  async appQuery(query, variables = {}) {
+    const endpoint = this.getAppEndpoint();
     try {
-      const response = await this.httpClient.post('', {
-        query,
-        variables
-      });
+      const response = await this.httpClient.post(endpoint, { query, variables });
 
       if (response.data.errors) {
         throw new Error(`GraphQL Error: ${JSON.stringify(response.data.errors)}`);
@@ -42,223 +54,194 @@ export class LineraClient {
 
       return response.data.data;
     } catch (error) {
-      console.error('❌ Linera GraphQL query failed:', error);
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error(
+          `Cannot connect to linera service at ${this.serviceUrl}. ` +
+          'Make sure `linera service --port 8080` is running.'
+        );
+      }
       throw error;
     }
   }
 
   /**
-   * Execute an operation on Linera chain
-   * @param {Object} operation - Operation to execute
-   * @returns {Promise<Object>} Operation result
+   * Execute a GraphQL mutation against the casino application.
+   * Linera mutations may return a block hash string on success.
    */
-  async executeOperation(operation) {
+  async appMutation(mutation, variables = {}) {
+    const endpoint = this.getAppEndpoint();
     try {
-      const mutation = `
-        mutation ExecuteOperation($chainId: String!, $operation: String!) {
-          executeOperation(chainId: $chainId, operation: $operation) {
-            hash
-            blockHeight
-            timestamp
-          }
-        }
-      `;
+      const response = await this.httpClient.post(endpoint, {
+        query: mutation,
+        variables,
+      });
 
-      const variables = {
-        chainId: this.chainId,
-        operation: JSON.stringify(operation)
-      };
+      if (response.data.errors) {
+        throw new Error(`GraphQL Error: ${JSON.stringify(response.data.errors)}`);
+      }
 
-      const result = await this.executeQuery(mutation, variables);
-      return result.executeOperation;
+      // Linera mutations can return the block hash as a raw string
+      if (typeof response.data.data === 'string') {
+        return { blockHash: response.data.data, success: true };
+      }
+
+      return response.data.data;
     } catch (error) {
-      console.error('❌ Linera operation execution failed:', error);
+      if (error.code === 'ECONNREFUSED') {
+        throw new Error(
+          `Cannot connect to linera service at ${this.serviceUrl}. ` +
+          'Make sure `linera service --port 8080` is running.'
+        );
+      }
       throw error;
     }
   }
 
-  /**
-   * Create a temporary chain for game session
-   * @param {Object} gameConfig - Game configuration
-   * @returns {Promise<Object>} Chain creation result
-   */
-  async createGameChain(gameConfig) {
-    try {
-      const operation = {
-        type: 'CreateGameChain',
-        gameType: gameConfig.gameType,
-        playerAddress: gameConfig.playerAddress,
-        sessionId: gameConfig.sessionId,
-        timestamp: Date.now()
-      };
+  // ----- Casino Contract Queries -----
 
-      const result = await this.executeOperation(operation);
-      
-      return {
-        success: true,
-        chainId: `game_${result.hash}`,
-        blockHeight: result.blockHeight,
-        messageId: result.hash,
-        timestamp: result.timestamp
-      };
-    } catch (error) {
-      console.error('❌ Failed to create game chain:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+  async queryNextGameId() {
+    const result = await this.appQuery('{ nextGameId }');
+    return result?.nextGameId;
   }
 
+  async queryTotalFunds() {
+    const result = await this.appQuery('{ totalFunds }');
+    return result?.totalFunds;
+  }
+
+  async queryPlayerBalance(owner) {
+    const result = await this.appQuery(
+      'query GetBalance($owner: String!) { playerBalance(owner: $owner) }',
+      { owner }
+    );
+    const balanceAttos = result?.playerBalance || '0';
+    return parseFloat(balanceAttos) / 1e18;
+  }
+
+  async queryGameHistory() {
+    const result = await this.appQuery(`{
+      gameHistory {
+        gameId
+        gameType
+        betAmount
+        payoutAmount
+        outcomeDetails
+        timestamp
+      }
+    }`);
+    return result?.gameHistory || [];
+  }
+
+  async queryGameOutcome(gameId) {
+    const result = await this.appQuery(
+      'query GetOutcome($gameId: Int!) { gameOutcome(gameId: $gameId) }',
+      { gameId: parseInt(gameId) }
+    );
+    return result?.gameOutcome;
+  }
+
+  // ----- Casino Contract Mutations -----
+
+  async deposit(amount) {
+    const amountAttos = Math.floor(parseFloat(amount) * 1e18).toString();
+    return this.appMutation(
+      'mutation Deposit($amount: String!) { deposit(amount: $amount) }',
+      { amount: amountAttos }
+    );
+  }
+
+  async withdraw(amount) {
+    const amountAttos = Math.floor(parseFloat(amount) * 1e18).toString();
+    return this.appMutation(
+      'mutation Withdraw($amount: String!) { withdraw(amount: $amount) }',
+      { amount: amountAttos }
+    );
+  }
+
+  async placeBet(gameType, betAmount, commitHash, gameParams = '') {
+    const amountAttos = Math.floor(parseFloat(betAmount) * 1e18).toString();
+    return this.appMutation(
+      `mutation PlaceBet($gameType: String!, $betAmount: String!, $commitHash: String!, $gameParams: String!) {
+        placeBet(gameType: $gameType, betAmount: $betAmount, commitHash: $commitHash, gameParams: $gameParams)
+      }`,
+      {
+        gameType,
+        betAmount: amountAttos,
+        commitHash,
+        gameParams: typeof gameParams === 'string' ? gameParams : JSON.stringify(gameParams),
+      }
+    );
+  }
+
+  async reveal(gameId, revealValue) {
+    return this.appMutation(
+      'mutation Reveal($gameId: Int!, $revealValue: String!) { reveal(gameId: $gameId, revealValue: $revealValue) }',
+      { gameId: parseInt(gameId), revealValue }
+    );
+  }
+
+  // ----- Game Logging -----
+
   /**
-   * Log game result to Linera blockchain
-   * @param {Object} gameData - Game data to log
-   * @returns {Promise<Object>} Logging result
+   * Log a game result to the blockchain.
+   * Uses the casino contract's mutation interface.
    */
   async logGameResult(gameData) {
     try {
-      // Format game data for Linera
       const lineraGameData = LINERA_CONFIG.formatGameDataForLinera(gameData);
-      
-      const operation = {
-        type: LINERA_CONFIG.OPERATIONS.LOG_GAME_RESULT,
-        data: lineraGameData
-      };
 
-      const result = await this.executeOperation(operation);
-      
-      return {
-        success: true,
-        chainId: this.chainId,
-        blockHeight: result.blockHeight,
-        messageId: result.hash,
-        timestamp: result.timestamp,
-        explorerUrl: LINERA_CONFIG.getBlockExplorerUrl(this.chainId, result.blockHeight)
-      };
-    } catch (error) {
-      console.error('❌ Failed to log game result to Linera:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
+      // The casino contract doesn't have a dedicated "log" mutation.
+      // Game results are recorded through placeBet + reveal flow.
+      // For logging purposes, we query the outcome after the game is resolved.
+      const gameId = gameData.gameId;
+      if (gameId != null) {
+        const outcome = await this.queryGameOutcome(gameId);
+        return {
+          success: true,
+          chainId: this.chainId,
+          gameId,
+          outcome,
+          explorerUrl: LINERA_CONFIG.getBlockExplorerUrl(this.chainId, null),
+          timestamp: Date.now(),
+        };
+      }
 
-  /**
-   * Get chain information
-   * @returns {Promise<Object>} Chain info
-   */
-  async getChainInfo() {
-    try {
-      const query = `
-        query GetChainInfo($chainId: String!) {
-          chain(chainId: $chainId) {
-            id
-            blockHeight
-            timestamp
-            description
-          }
-        }
-      `;
-
-      const variables = { chainId: this.chainId };
-      const result = await this.executeQuery(query, variables);
-      
-      return result.chain;
-    } catch (error) {
-      console.error('❌ Failed to get chain info:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Send a message to another chain
-   * @param {string} targetChainId - Target chain ID
-   * @param {Object} message - Message to send
-   * @returns {Promise<Object>} Message result
-   */
-  async sendMessage(targetChainId, message) {
-    try {
-      const operation = {
-        type: 'SendMessage',
-        targetChainId,
-        message,
-        timestamp: Date.now()
-      };
-
-      const result = await this.executeOperation(operation);
-      
-      return {
-        success: true,
-        messageId: result.hash,
-        blockHeight: result.blockHeight,
-        timestamp: result.timestamp
-      };
-    } catch (error) {
-      console.error('❌ Failed to send message:', error);
       return {
         success: false,
-        error: error.message
-      };
-    }
-  }
-
-  /**
-   * Close a temporary chain
-   * @param {string} chainId - Chain ID to close
-   * @returns {Promise<Object>} Close result
-   */
-  async closeChain(chainId) {
-    try {
-      const operation = {
-        type: 'CloseChain',
-        chainId,
-        timestamp: Date.now()
-      };
-
-      const result = await this.executeOperation(operation);
-      
-      return {
-        success: true,
-        closedChainId: chainId,
-        blockHeight: result.blockHeight,
-        timestamp: result.timestamp
+        error: 'No gameId provided for logging',
       };
     } catch (error) {
-      console.error('❌ Failed to close chain:', error);
+      console.error('Failed to log game result:', error.message);
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
+  // ----- Health / Status -----
+
   /**
-   * Get application state
-   * @returns {Promise<Object>} Application state
+   * Check if the linera service is reachable and the application endpoint is available.
    */
-  async getApplicationState() {
+  async healthCheck() {
+    const endpoint = this.getAppEndpoint();
     try {
-      const query = `
-        query GetApplicationState($chainId: String!, $applicationId: String!) {
-          application(chainId: $chainId, applicationId: $applicationId) {
-            id
-            description
-            state
-          }
-        }
-      `;
-
-      const variables = {
-        chainId: this.chainId,
-        applicationId: this.applicationId
+      const response = await this.httpClient.post(endpoint, {
+        query: '{ __typename }',
+      });
+      return {
+        serviceReachable: true,
+        appAvailable: !response.data.errors,
+        endpoint,
       };
-
-      const result = await this.executeQuery(query, variables);
-      return result.application;
     } catch (error) {
-      console.error('❌ Failed to get application state:', error);
-      throw error;
+      return {
+        serviceReachable: false,
+        appAvailable: false,
+        endpoint,
+        error: error.message,
+      };
     }
   }
 }
