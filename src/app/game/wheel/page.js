@@ -121,13 +121,14 @@ export default function Home() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              gameType: 'WHEEL',
+              gameType: 'Wheel',
+              gameId: lineraResult.gameId,
               gameResult: {
                 multiplier: targetHistoryItem.multiplier,
                 payout: targetHistoryItem.payout,
                 segments: targetHistoryItem.segments || 'unknown'
               },
-              playerAddress: 'unknown', // Will be updated when wallet integration is available
+              playerAddress: 'unknown',
               betAmount: targetHistoryItem.betAmount || 0,
               payout: targetHistoryItem.payout || 0,
               lineraProof: {

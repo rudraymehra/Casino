@@ -648,7 +648,7 @@ const RouletteHistory = ({ bettingHistory = [] }) => {
                                   <Box
                                     onClick={() => {
                                       const url = bet.lineraExplorerUrl || 
-                                                 `https://explorer.linera.io/chain/${bet.lineraChainId}/block/${bet.lineraBlockHeight}`;
+                                                 `https://explorer.testnet-conway.linera.net/chains/${bet.lineraChainId}`;
                                       window.open(url, '_blank');
                                     }}
                                     sx={{

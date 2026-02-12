@@ -22,6 +22,7 @@ export async function POST(request) {
 
     console.log('🎮 Processing Linera game log:', {
       gameType: gameData.gameType,
+      gameId: gameData.gameId,
       playerAddress: gameData.playerAddress,
       betAmount: gameData.betAmount,
       payout: gameData.payout
@@ -53,6 +54,7 @@ export async function POST(request) {
 
       return NextResponse.json({
         success: true,
+        gameId: gameData.gameId || result.gameId,
         chainId: result.chainId,
         blockHeight: result.blockHeight,
         messageId: result.messageId,

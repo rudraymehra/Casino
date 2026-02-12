@@ -2038,6 +2038,20 @@ export default function GameRoulette() {
             blockchainSubmitted: lineraResult.proof?.blockchainSubmitted,
             source: 'Linera Conway Testnet'
           };
+
+          // Build entropyProof from Linera response
+          newBet.entropyProof = {
+            sequenceNumber: lineraResult.gameId,
+            explorerUrl: lineraResult.explorerUrl
+              ? `https://entropy-explorer.pyth.network/?chain=linera&search=${lineraResult.proof?.commitHash}`
+              : null,
+            arbiscanUrl: null,
+            pushChainExplorerUrl: null,
+            solanaExplorerUrl: null,
+            lineraExplorerUrl: lineraResult.explorerUrl,
+            lineraChainId: lineraResult.proof?.chainId,
+            requestId: lineraResult.proof?.transactionId || lineraResult.gameId,
+          };
           
           // Log game result to Linera
           fetch('/api/log-to-linera', {
@@ -2046,7 +2060,8 @@ export default function GameRoulette() {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              gameType: 'ROULETTE',
+              gameType: 'Roulette',
+              gameId: lineraResult.gameId,
               gameResult: {
                 winningNumber,
                 totalBets: allBets.length,
@@ -2101,9 +2116,9 @@ export default function GameRoulette() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                sessionId: entropyResult.entropyProof.requestId || `roulette_${Date.now()}`,
+                sessionId: newBet.entropyProof?.requestId || `roulette_${Date.now()}`,
                 gameType: 'ROULETTE',
-                channelId: entropyResult.entropyProof.requestId || 'entropy_channel',
+                channelId: newBet.entropyProof?.requestId || 'entropy_channel',
                 valueMon: 0
               })
             })

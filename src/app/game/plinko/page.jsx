@@ -229,7 +229,8 @@ export default function Plinko() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            gameType: 'PLINKO',
+            gameType: 'Plinko',
+            gameId: lineraResult.gameId,
             gameResult: {
               multiplier: newBetResult.multiplier,
               payout: newBetResult.payout,
@@ -256,7 +257,8 @@ export default function Plinko() {
 
       // Game log data for final logging
       const gameLogData = {
-        gameType: 'PLINKO',
+        gameType: 'Plinko',
+        gameId: lineraResult.gameId,
         gameResult: {
           multiplier: newBetResult.multiplier,
           payout: newBetResult.payout,

@@ -218,7 +218,8 @@ export default function Mines() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            gameType: 'MINES',
+            gameType: 'Mines',
+            gameId: lineraProof?.gameId,
             gameResult: {
               mines: result.mines || 0,
               won: result.won || false,
@@ -244,7 +245,8 @@ export default function Mines() {
 
       // Game data for history
       const gameLogData = {
-        gameType: 'MINES',
+        gameType: 'Mines',
+        gameId: lineraProof?.gameId,
         gameResult: {
           mines: result.mines,
           outcome: result.won ? 'win' : 'loss',
@@ -299,7 +301,7 @@ export default function Mines() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: lineraProof?.gameId || `mines_${Date.now()}`,
-          gameType: 'MINES',
+          gameType: 'Mines',
           requestId: `mines_request_${Date.now()}`,
           lineraProof: lineraProof
         })
